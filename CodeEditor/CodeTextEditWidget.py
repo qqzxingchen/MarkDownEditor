@@ -7,16 +7,30 @@ from PyQt5 import QtCore
 
 from CodeEditor.TextDocument import TextDocument
 from CodeEditor.TextCursor import TextCursor
-from CodeEditor.CodeEditorGlobalDefines import CodeEditorGlobalDefines
+from CodeEditor.CodeEditorGlobalDefines import CEGlobalDefines
+from CodeEditor.CodeEditorGlobalDefines import funcExeTime
+
+
+
+
+
+
+
+
 
 
 class CodeTextEditWidget(QWidget):
-    # 其中 bool 指代的是文本改变之后，文本的行数有没有发生改变
-    # 为True则表示行数发生改变
-    textChangedSignal = QtCore.pyqtSignal( bool )       
+    # 当文本内容发生改变时，该信号将会被发射
+    textDocumentChangedSignal = QtCore.pyqtSignal( TextDocument)
+    
+    # 当绘制文本时，单行文本最大像素长度改变时，该信号被发射
+    # int 指代的是新的最大宽度
+    lineStrLengthChangedSignal = QtCore.pyqtSignal( int )
+    
+    
     
     # 修改字体，注意，当前只支持等宽字体
-    def setFont(self,fontObj = QtGui.QFont('Consolas')):
+    def setFont(self,fontObj = QtGui.QFont('Consolas',11)):
         fontObj.setBold(True)
         self.__font = fontObj
         self.__fontMetrics = QtGui.QFontMetrics(self.__font)
@@ -32,8 +46,8 @@ class CodeTextEditWidget(QWidget):
             self.__textDocument = TextDocument()
         else:
             self.__textDocument = textDocument
-        self.update()
-        self.textChangedSignal.emit(True)
+        self.__onTextDicumentChanged()
+        self.textDocumentChangedSignal.emit(self.__textDocument)
     def getTextDocument(self):
         return self.__textDocument
 
@@ -97,115 +111,215 @@ class CodeTextEditWidget(QWidget):
         self.setFont()
         self.setEditAble()
 
-        self.__lineNumberRightXOff = 24     # 行号将会右对齐于 self.__lineNumberRightXOff 标示的一条竖线
-        self.__lineTextLeftXOff = 40            # 文本将会左对齐于 self.__lineTextLeftXOff 标示的一条竖线
+        self.__lineNumberRightXOff = 44     # 行号将会右对齐于 self.__lineNumberRightXOff 标示的一条竖线
+        self.__lineTextLeftXOff = 64        # 文本将会左对齐于 self.__lineTextLeftXOff 标示的一条竖线
         
         self.__startDisLineNumber = 0       # 当前将会从第 startDisLineNumber 行开始显示
         self.__startDisLetterXOff = 0       # 每行文本将会向左偏移 startDisLetterNumber 个像素
         
+        self.__lineTextMaxPixels = 0         # 当前文本在绘制时，最大的像素数（横轴滚动条将会根据它设置的maxrange）
+        
         self.__cursor = TextCursor(self)
-        self.__cursor.cursorVisibleChangedSignal.connect(self.onCursorVisibleChanged)
-        self.__cursor.initPos( QtCore.QRect( self.__lineTextLeftXOff,CodeEditorGlobalDefines.TextYOff,2,self.__fontMetrics.ascent() ) )
+        self.__cursor.cursorVisibleChangedSignal.connect(self.__onCursorVisibleChanged)
+        self.__cursor.cursorPosChangedSignal.connect(self.__onCursorPosChanged)
+        initCursorRect = self.__transGloPosByCurPos( QtCore.QRect( self.__lineTextLeftXOff,CEGlobalDefines.TextYOff, \
+                                                                   CEGlobalDefines.CursorWidth,self.__fontMetrics.height() )) 
+        self.__cursor.initPos( initCursorRect,(0,0) )
         
+    def __resetLineStrMaxPixels(self,newPixelLength):
+        if self.__lineTextMaxPixels != newPixelLength:
+            self.__lineTextMaxPixels = newPixelLength
+            self.lineStrLengthChangedSignal.emit(self.__lineTextMaxPixels)
     
-    def onCursorVisibleChanged(self):
-        self.update( self.__cursor.getNewPos() )
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
+    # 根据光标的全局位置，计算出当前视口下光标的实际位置
+    def __transCurPosByGloPos(self,globalCursorPos):
+        return QtCore.QRect(globalCursorPos.x() + self.__lineTextLeftXOff - self.__startDisLetterXOff , \
+                            globalCursorPos.y() - self.__fontMetrics.lineSpacing() * self.__startDisLineNumber, \
+                            globalCursorPos.width(),
+                            globalCursorPos.height() )
+    def __transGloPosByCurPos(self,currentCursorPos):
+        return QtCore.QRect(currentCursorPos.x() - (self.__lineTextLeftXOff - self.__startDisLetterXOff) , \
+                            currentCursorPos.y() + self.__fontMetrics.lineSpacing() * self.__startDisLineNumber, \
+                            currentCursorPos.width(),
+                            currentCursorPos.height() )
+
+
+
+
+    def __onCursorVisibleChanged(self):
+        self.__updateLineIndexRect( self.__cursor.getCursorIndexPos()[1],self.__fontMetrics.lineSpacing() )
+    def __onCursorPosChanged(self):
+        self.__updateLineIndexRect( self.__cursor.getCursorIndexPos(False)[1],self.__fontMetrics.lineSpacing() )
+
     
     
+    
+    
+    
+    
+        
     def mousePressEvent(self, event):
-        
         if event.button() == QtCore.Qt.LeftButton:
-            self.showLineNumberAsTop(self.__startDisLineNumber+1)
-        else:
-            self.showLeftXOffAsLeft(self.__startDisLetterXOff+1)
+            self.__onLeftMousePressed(event.x(),event.y())
+    def __onLeftMousePressed(self, x, y):
+        y = max([y,CEGlobalDefines.TextYOff])
+        x = max([x,self.__lineTextLeftXOff])
+        
+        lineIndex = self.__startDisLineNumber + int((y-CEGlobalDefines.TextYOff)/self.__fontMetrics.lineSpacing())
+        if lineIndex > self.__textDocument.getLineCount()-1:
+            lineIndex = self.__textDocument.getLineCount()-1
+                
+        lineTopYOff = (lineIndex-self.__startDisLineNumber)*self.__fontMetrics.lineSpacing() + CEGlobalDefines.TextYOff
+        charWidthArray = self.__textDocument.getCharWidthArrayByIndex(lineIndex)
+                
+        startX = self.__lineTextLeftXOff - self.__startDisLetterXOff
+        xIndex = 0
+        
+        while xIndex < len(charWidthArray):
+            charWidth = charWidthArray[xIndex]
+            startX += charWidth + CEGlobalDefines.CharDistancePixel
+            xIndex += 1
+            if startX >= x:
+                break
+        if startX > x:
+            if ( startX - (charWidth + CEGlobalDefines.CharDistancePixel)/2 > x ):
+                startX -= (charWidth + CEGlobalDefines.CharDistancePixel)
+                xIndex -= 1
+        
+        cursorPos = self.__transGloPosByCurPos( QtCore.QRect( startX,lineTopYOff,CEGlobalDefines.CursorWidth,self.__fontMetrics.height() ) )
+        self.__cursor.setGlobalCursorPos( cursorPos,( xIndex,lineIndex ) )
+
+
+
+
+
+
+
+
+
+
+
+
+            
+    def __onTextDicumentChanged(self):
+        return 
+
     
-    
+    # 根据当前最新的文本，来重绘文本信息Dict
+    def __refreshLineTextInfoDictByIndex(self,index):
+        curLineText = self.__textDocument.getLineTextByIndex(index)
+        maxPixelLength = len(curLineText)*( CEGlobalDefines.CharDistancePixel + \
+                                            self.__fontMetrics.maxWidth() * 2 )
+        
+        pixmapObjNormal = QtGui.QPixmap(maxPixelLength,self.__fontMetrics.lineSpacing())
+        pixmapObjNormal.fill(QtGui.QColor(0,0,0,0))
+        painterNormal = QtGui.QPainter(pixmapObjNormal)
+        painterNormal.setPen(CEGlobalDefines.LineStrPen)
+        painterNormal.setFont(self.__font)
+
+        curXOff = 0
+        charWidthInfoArr = []
+        letterRect = QtCore.QRect(0,0,0,0)
+        for curChar in curLineText:
+            curXOff += CEGlobalDefines.CharDistancePixel
+            letterRect = painterNormal.boundingRect(curXOff,0,0,0,0,curChar)
+            painterNormal.drawText(letterRect,0,curChar)
+            curXOff += letterRect.width()
+            charWidthInfoArr.append( letterRect.width() )
+        
+        # 最大宽度需要减掉最后一个字符导致的字符长度增长，这样可以保证即使用户把滚动条拉倒最右边，也有字符显示出来
+        self.__textDocument.setLineTextInfoDict(index, charWidthInfoArr, pixmapObjNormal,curXOff - letterRect.width())
+
+
+    # 以当前的设置为准，更新第lineIndex对应的矩形区域
+    def __updateLineIndexRect(self,lineIndex,height):
+        for item in self.__calcAnyVisibleYOff():
+            if item['lineIndex'] == lineIndex:
+                self.update( 0, item['lineYOff'],self.width(),height )
+                break
+                
+    @funcExeTime
     def paintEvent(self,event):
         painter = QtGui.QPainter(self)
         painter.setFont(self.__font)
-
+        
+        yOffArray = self.__calcAnyVisibleYOff()
+        
         painter.save()
-        self.__drawLineNumber(painter)
+        self.__drawLineNumber(painter,yOffArray)
         painter.restore()
         
         painter.save()
-        self.__drawLineText(painter, event.rect())
+        self.__drawLineText(painter,yOffArray,event.rect())
         painter.restore()
         
-        self.__drawCursor(painter)
-        
+        painter.save()
+        self.__drawCursor(painter,yOffArray)
+        painter.restore()
+                
         QWidget.paintEvent(self,event)
+
+    # 计算每行文本的y偏移（行号和文本的y偏移都一样）
+    def __calcAnyVisibleYOff(self):
+        yOffArray = []
+        for i in range( self.__startDisLineNumber,self.__textDocument.getLineCount() ):
+            curY = CEGlobalDefines.TextYOff + self.__fontMetrics.lineSpacing() * (i-self.__startDisLineNumber)
+            if curY > self.height():
+                break
+            yOffArray.append( {'lineIndex':i,'lineYOff':curY} )
+        return yOffArray
     
-    
-    def __drawCursor(self,painter):
-        painter.fillRect( self.__cursor.getNewPos(), QtCore.Qt.SolidPattern if self.__cursor.isNeedShowCursor() else QtCore.Qt.NoBrush)
+    # 绘制鼠标相关
+    def __drawCursor(self,painter,yOffArray):
+        drawCursorSign = False
+        for item in yOffArray:
+            if item['lineIndex'] == self.__cursor.getCursorIndexPos()[1]:     
+                drawCursorSign = True
+        if drawCursorSign == False:
+            return 
+        
+        cursorRect = self.__transCurPosByGloPos( self.__cursor.getCursorRect() )
+        painter.fillRect( cursorRect,QtCore.Qt.SolidPattern if self.__cursor.isNeedShowCursor() else QtCore.Qt.NoBrush)
+                
+        lineTextRect = QtCore.QRect( self.__lineTextLeftXOff,cursorRect.y(), \
+                                     self.width()-self.__lineTextLeftXOff,self.__fontMetrics.lineSpacing() )
+        painter.fillRect( lineTextRect ,CEGlobalDefines.LineSelectedBKBrush)
+        
+        
+        
+        
         
         
     # 绘制行号        
-    def __drawLineNumber(self,painter):
-        pen = QtGui.QPen()
-        pen.setColor( QtGui.QColor(255,0,0) )        
-        painter.setPen(pen)
-        for i in range( self.__startDisLineNumber,self.__textDocument.getLineCount() ):
-            curY = CodeEditorGlobalDefines.TextYOff + self.__fontMetrics.lineSpacing() * (i-self.__startDisLineNumber)
-            if curY > self.height():
-                break
-            
-            lineNumberRect = painter.boundingRect( 0,curY,0,0,0,str(i+1) )
+    def __drawLineNumber(self,painter,yOffArray):
+        painter.setPen(CEGlobalDefines.LineNumberPen)   
+        for item in yOffArray:
+            curY = item['lineYOff']
+            index = item['lineIndex']
+            lineNumberRect = painter.boundingRect( 0,curY,0,0,0,str(index+1) )
             lineNumberRect.moveRight( self.__lineNumberRightXOff - lineNumberRect.x() )
-            painter.drawText( lineNumberRect,0,str(i+1) )
+            painter.drawText( lineNumberRect,0,str(index+1) )
 
 
     # 绘制每行文本
-    def __drawLineText(self,painter,redrawRect):
+    #@funcExeTime
+    def __drawLineText(self,painter,yOffArray,redrawRect):
         
-        '''
-        if isinstance(self.__textDocument.userData.get('lineCharWidthInfo'), list) == False:
-            self.__textDocument.userData['lineCharWidthInfo'] = []
-        lineCharWidthInfo = self.__textDocument.userData['lineCharWidthInfo']
-        '''
-        
-        
-        pen = QtGui.QPen() 
-        pen.setColor( QtGui.QColor(0,0,0) )
-        painter.setPen(pen)
         # 绘制文本时，需要设置裁剪区域
         painter.setClipRect( QtCore.QRect( self.__lineTextLeftXOff,0,self.width()-self.__lineTextLeftXOff,self.height() ),QtCore.Qt.IntersectClip )
-        for i in range( self.__startDisLineNumber,self.__textDocument.getLineCount() ):
-            curY = CodeEditorGlobalDefines.TextYOff + self.__fontMetrics.lineSpacing() * (i-self.__startDisLineNumber)
-            if curY > self.height():
-                break
-            
-            curLineStr = self.__textDocument.getTextByLineNumber(i)
-            curXOff = self.__lineTextLeftXOff-self.__startDisLetterXOff
-            for curChar in curLineStr:
-                r = painter.boundingRect(curXOff,curY,0,0,0,curChar)
-                if redrawRect.intersects( r ) or redrawRect.contains( r ) or r.contains( redrawRect ):
-                    painter.drawText(r,0,curChar)
-                curXOff += r.width() + CodeEditorGlobalDefines.CharDistancePixel
-                        
-            
-            '''
-            curLineStr = self.__textDocument.getTextByLineNumber(i)
-            lineStrRect = painter.boundingRect(self.__lineTextLeftXOff-self.__startDisLetterXOff, curY, 0,0,0,curLineStr)
-            if event.rect().intersects( lineStrRect ) or event.rect().contains( lineStrRect ) or lineStrRect.contains( event.rect() ):
-                painter.drawText(lineStrRect,0,curLineStr )    
-            '''
+        for item in yOffArray:
+            lineYOff = item['lineYOff']
+            lineIndex = item['lineIndex']
+            pixmapObj = self.__textDocument.getNormalLineTextPixmapByIndex(lineIndex)
+            if pixmapObj == None:
+                self.__refreshLineTextInfoDictByIndex(lineIndex)
+                pixmapObj = self.__textDocument.getNormalLineTextPixmapByIndex(lineIndex)
+            if lineYOff >= redrawRect.y() and lineYOff <= redrawRect.y() + redrawRect.height():            
+                painter.drawPixmap( self.__lineTextLeftXOff - self.__startDisLetterXOff , lineYOff,pixmapObj )
 
+        self.__resetLineStrMaxPixels(self.__textDocument.getMaxLineWidth())
+            
+        
 
 
 
@@ -222,11 +336,11 @@ if __name__ == "__main__":
 
     app = QApplication(sys.argv)
 
-    mte = CodeTextEditWidget()
+    mce = CodeTextEditWidget()
     with codecs.open( '../tmp/temp.txt','r','utf-8' ) as templateFileObj:
         fileStr = templateFileObj.read()
-        mte.setTextDocument(TextDocument(fileStr))
-    mte.show()
+        mce.setTextDocument(TextDocument(fileStr))
+    mce.show()
     
     
     
