@@ -35,9 +35,28 @@ class TextDocument(QtCore.QObject):
         return self.text
     def getSplitedChar(self):
         return self.__splitedChar
+
+    def insertLineBreak(self,xyPos):
+        xPos = xyPos[0]
+        yPos = xyPos[1]
+        curLineText = self.__lineTextInfoDictArray[yPos][TextDocument.LINE_TEXT_STR]
+        self.__lineTextInfoDictArray[yPos] = {TextDocument.LINE_TEXT_STR:curLineText[0:xPos]}
+        self.__lineTextInfoDictArray.insert( yPos + 1 , {TextDocument.LINE_TEXT_STR:curLineText[xPos:len(curLineText)]})
+
+    
+
+    def insertTextWithoutLineBreak(self,xyPos,text):        
+        xPos = xyPos[0]
+        yPos = xyPos[1]
+        curLineText = self.__lineTextInfoDictArray[yPos][TextDocument.LINE_TEXT_STR]
+        self.__lineTextInfoDictArray[yPos] = {TextDocument.LINE_TEXT_STR:curLineText[0:xPos] + text + curLineText[xPos:len(curLineText)]}
+
+            
+            
+        
+
         
         
-          
     
     def setLineTextInfoDict(self,index,charWidthArray,normalLineTextPixmap,lineWidth):
         if index >= len(self.__lineTextInfoDictArray):

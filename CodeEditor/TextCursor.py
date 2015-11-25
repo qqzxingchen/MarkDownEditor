@@ -30,7 +30,7 @@ class TextCursor(QtCore.QObject):
         self.__oldIndexPos = xyIndexTuple
         self.__curIndexPos = xyIndexTuple
     
-    def setGlobalCursorPos(self,rect,xyIndexTuple):
+    def setGlobalCursorPos(self,rect,xyIndexTuple):        
         self.__timer.stop()
 
         # 隐藏旧的光标

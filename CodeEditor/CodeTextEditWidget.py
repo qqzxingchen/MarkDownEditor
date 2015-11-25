@@ -126,6 +126,10 @@ class CodeTextEditWidget(QWidget):
                                                                    CEGlobalDefines.CursorWidth,self.__fontMetrics.height() )) 
         self.__cursor.initPos( initCursorRect,(0,0) )
         
+
+    
+    
+        
     def __resetLineStrMaxPixels(self,newPixelLength):
         if self.__lineTextMaxPixels != newPixelLength:
             self.__lineTextMaxPixels = newPixelLength
@@ -151,9 +155,12 @@ class CodeTextEditWidget(QWidget):
     def __onCursorPosChanged(self):
         self.__updateLineIndexRect( self.__cursor.getCursorIndexPos(False)[1],self.__fontMetrics.lineSpacing() )
 
-    
-    
-    
+    # 以当前的设置为准，更新第lineIndex对应的矩形区域
+    def __updateLineIndexRect(self,lineIndex,height):
+        for item in self.__calcAnyVisibleYOff():
+            if item['lineIndex'] == lineIndex:
+                self.update( 0, item['lineYOff'],self.width(),height )
+                break
     
     
     
@@ -190,9 +197,25 @@ class CodeTextEditWidget(QWidget):
         self.__cursor.setGlobalCursorPos( cursorPos,( xIndex,lineIndex ) )
 
 
+    def keyPressEvent(self, event):
+        if (event.key() >= 0x30 and event.key() <= 0x39):
+            xPos,yPos = self.__cursor.getCursorIndexPos()
+            self.__textDocument.insertTextWithoutLineBreak( self.__cursor.getCursorIndexPos() , str(event.key()-0x30))
 
+            self.__refreshLineTextInfoDictByIndex(yPos)
+            self.__updateLineIndexRect(yPos, self.__fontMetrics.lineSpacing())
+        else:
+            xPos,yPos = self.__cursor.getCursorIndexPos()
+            self.__textDocument.insertLineBreak( self.__cursor.getCursorIndexPos() )
 
+            self.__refreshLineTextInfoDictByIndex(yPos)
+            self.__refreshLineTextInfoDictByIndex(yPos+1)            
+            self.__updateLineIndexRect(yPos, self.height())
+            
 
+            
+            
+            
 
 
 
@@ -206,6 +229,7 @@ class CodeTextEditWidget(QWidget):
 
     
     # 根据当前最新的文本，来重绘文本信息Dict
+    @funcExeTime
     def __refreshLineTextInfoDictByIndex(self,index):
         curLineText = self.__textDocument.getLineTextByIndex(index)
         maxPixelLength = len(curLineText)*( CEGlobalDefines.CharDistancePixel + \
@@ -231,33 +255,10 @@ class CodeTextEditWidget(QWidget):
         self.__textDocument.setLineTextInfoDict(index, charWidthInfoArr, pixmapObjNormal,curXOff - letterRect.width())
 
 
-    # 以当前的设置为准，更新第lineIndex对应的矩形区域
-    def __updateLineIndexRect(self,lineIndex,height):
-        for item in self.__calcAnyVisibleYOff():
-            if item['lineIndex'] == lineIndex:
-                self.update( 0, item['lineYOff'],self.width(),height )
-                break
-                
-    @funcExeTime
-    def paintEvent(self,event):
-        painter = QtGui.QPainter(self)
-        painter.setFont(self.__font)
-        
-        yOffArray = self.__calcAnyVisibleYOff()
-        
-        painter.save()
-        self.__drawLineNumber(painter,yOffArray)
-        painter.restore()
-        
-        painter.save()
-        self.__drawLineText(painter,yOffArray,event.rect())
-        painter.restore()
-        
-        painter.save()
-        self.__drawCursor(painter,yOffArray)
-        painter.restore()
-                
-        QWidget.paintEvent(self,event)
+
+    
+    
+    
 
     # 计算每行文本的y偏移（行号和文本的y偏移都一样）
     def __calcAnyVisibleYOff(self):
@@ -269,31 +270,34 @@ class CodeTextEditWidget(QWidget):
             yOffArray.append( {'lineIndex':i,'lineYOff':curY} )
         return yOffArray
     
-    # 绘制鼠标相关
-    def __drawCursor(self,painter,yOffArray):
-        drawCursorSign = False
-        for item in yOffArray:
-            if item['lineIndex'] == self.__cursor.getCursorIndexPos()[1]:     
-                drawCursorSign = True
-        if drawCursorSign == False:
-            return 
+      
+
+    def paintEvent(self,event):
+        painter = QtGui.QPainter(self)
+        painter.setFont(self.__font)
         
-        cursorRect = self.__transCurPosByGloPos( self.__cursor.getCursorRect() )
-        painter.fillRect( cursorRect,QtCore.Qt.SolidPattern if self.__cursor.isNeedShowCursor() else QtCore.Qt.NoBrush)
+        visibleLineYOffInfoArray = self.__calcAnyVisibleYOff()
+        
+        painter.save()
+        self.__drawLineNumber(painter,visibleLineYOffInfoArray)
+        painter.restore()
+        
+        painter.save()
+        self.__drawLineText(painter,visibleLineYOffInfoArray,event.rect())
+        painter.restore()
+        
+        painter.save()
+        self.__drawCursor(painter,visibleLineYOffInfoArray)
+        painter.restore()
                 
-        lineTextRect = QtCore.QRect( self.__lineTextLeftXOff,cursorRect.y(), \
-                                     self.width()-self.__lineTextLeftXOff,self.__fontMetrics.lineSpacing() )
-        painter.fillRect( lineTextRect ,CEGlobalDefines.LineSelectedBKBrush)
-        
-        
-        
-        
-        
+        QWidget.paintEvent(self,event)
+
+
         
     # 绘制行号        
-    def __drawLineNumber(self,painter,yOffArray):
+    def __drawLineNumber(self,painter,visibleLineYOffInfoArray):
         painter.setPen(CEGlobalDefines.LineNumberPen)   
-        for item in yOffArray:
+        for item in visibleLineYOffInfoArray:
             curY = item['lineYOff']
             index = item['lineIndex']
             lineNumberRect = painter.boundingRect( 0,curY,0,0,0,str(index+1) )
@@ -303,11 +307,11 @@ class CodeTextEditWidget(QWidget):
 
     # 绘制每行文本
     #@funcExeTime
-    def __drawLineText(self,painter,yOffArray,redrawRect):
+    def __drawLineText(self,painter,visibleLineYOffInfoArray,redrawRect):
         
         # 绘制文本时，需要设置裁剪区域
         painter.setClipRect( QtCore.QRect( self.__lineTextLeftXOff,0,self.width()-self.__lineTextLeftXOff,self.height() ),QtCore.Qt.IntersectClip )
-        for item in yOffArray:
+        for item in visibleLineYOffInfoArray:
             lineYOff = item['lineYOff']
             lineIndex = item['lineIndex']
             pixmapObj = self.__textDocument.getNormalLineTextPixmapByIndex(lineIndex)
@@ -320,7 +324,23 @@ class CodeTextEditWidget(QWidget):
         self.__resetLineStrMaxPixels(self.__textDocument.getMaxLineWidth())
             
         
+    # 绘制鼠标相关
+    def __drawCursor(self,painter,visibleLineYOffInfoArray):
+        drawCursorSign = False
+        for item in visibleLineYOffInfoArray:
+            if item['lineIndex'] == self.__cursor.getCursorIndexPos()[1]:     
+                drawCursorSign = True
+        if drawCursorSign == False:
+            return 
 
+        painter.setClipRect( QtCore.QRect( self.__lineTextLeftXOff,0,self.width()-self.__lineTextLeftXOff,self.height() ),QtCore.Qt.IntersectClip )
+        
+        cursorRect = self.__transCurPosByGloPos( self.__cursor.getCursorRect() )
+        painter.fillRect( cursorRect,QtCore.Qt.SolidPattern if self.__cursor.isNeedShowCursor() else QtCore.Qt.NoBrush)
+                
+        lineTextRect = QtCore.QRect( self.__lineTextLeftXOff,cursorRect.y(), \
+                                     self.width()-self.__lineTextLeftXOff,self.__fontMetrics.lineSpacing() )
+        painter.fillRect( lineTextRect ,CEGlobalDefines.LineSelectedBKBrush)
 
 
 
