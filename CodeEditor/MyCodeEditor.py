@@ -17,7 +17,7 @@ class MyCodeEditor(QWidget):
 
     def __initData(self):
         self.__codeTextWidget = CodeTextEditWidget(self)
-        self.__codeTextWidget.textDocumentChangedSignal.connect(self.__onCodeTextChanged)
+        self.__codeTextWidget.textChangedSignal.connect(self.__onCodeTextChanged)
         self.__codeTextWidget.lineStrLengthChangedSignal.connect(self.__onLineStrLengthChanged)
         
         # 横纵滚动条
@@ -33,8 +33,7 @@ class MyCodeEditor(QWidget):
         self.__horizontalScrollBar.setMaximumHeight(self.__horizontalScrollBar.height())
         self.__horizontalScrollBar.valueChanged.connect(self.__onHScrollValueChanged)
         
-        self.setTextDocument = self.__codeTextWidget.setTextDocument
-        self.setText = lambda text : self.__codeTextWidget.setTextDocument(TextDocument(text))
+        self.setText = self.__codeTextWidget.setText
 
     def __onLineStrLengthChanged(self,newMaxLength):
         hMax = newMaxLength-1

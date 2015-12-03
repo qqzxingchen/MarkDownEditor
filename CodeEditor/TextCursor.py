@@ -1,9 +1,8 @@
 
-from PyQt5 import QtCore
-from cmath import rect
+from PyQt5 import QtCore, QtGui, QtWidgets 
 
 
-class TextCursor(QtCore.QObject):
+class TextCursor(QtWidgets.QLabel):
     
     # 当光标的显隐需要更改时
     cursorVisibleChangedSignal = QtCore.pyqtSignal()
@@ -20,17 +19,17 @@ class TextCursor(QtCore.QObject):
     def isNeedShowCursor(self):
         return self.__curState == TextCursor.SHOW_CURSOR
 
-    # self.__*Rect(QRect)指代鼠标的当前像素位置，但是它是滚动条无关的
+    # self.__*PixelPos(tuple)指代光标的当前像素位置，但是它是滚动条无关的
     # 也就是说，必须在这个位置的基础上减掉因滚动条而产生的增量才能得到滚动条需要绘制到界面上的位置
-    # 
-    def initPos(self,rect,xyIndexTuple):
-        self.__oldRect = rect
-        self.__curRect = rect
+    # self.__*IndexPos(tuple)指代光标的当前字符位置，是与TextDocument相关的
+    def initPos(self,xyPixelTuple,xyIndexTuple):
+        self.__oldPixelPos = xyPixelTuple
+        self.__curPixelPos = xyPixelTuple
 
         self.__oldIndexPos = xyIndexTuple
         self.__curIndexPos = xyIndexTuple
     
-    def setGlobalCursorPos(self,rect,xyIndexTuple):        
+    def setGlobalCursorPos(self,xyPixelTuple,xyIndexTuple):        
         self.__timer.stop()
 
         # 隐藏旧的光标
@@ -38,8 +37,8 @@ class TextCursor(QtCore.QObject):
         self.cursorVisibleChangedSignal.emit()
 
         # 显示新的光标
-        self.__oldRect = self.__curRect
-        self.__curRect = rect
+        self.__oldPixelPos = self.__curPixelPos
+        self.__curPixelPos = xyPixelTuple
         self.__oldIndexPos = self.__curIndexPos
         self.__curIndexPos = xyIndexTuple
         self.__curState = TextCursor.SHOW_CURSOR        
@@ -50,24 +49,33 @@ class TextCursor(QtCore.QObject):
         # 通知光标位置已经更新
         self.cursorPosChangedSignal.emit()
 
-    def getCursorRect(self,isCurrent = True):
-        return self.__curRect if isCurrent == True else self.__oldRect
+    def getCursorPixelPos(self,isCurrent = True):
+        return self.__curPixelPos if isCurrent == True else self.__oldPixelPos
     def getCursorIndexPos(self,isCurrent = True):
         return self.__curIndexPos if isCurrent == True else self.__oldIndexPos
 
-        
     def __init__(self, parent = None):
-        QtCore.QObject.__init__(self,parent)
+        QtWidgets.QLabel.__init__(self,parent)
+        self.setStyleSheet( "background-color:red;" )
+        self.cursorVisibleChangedSignal.connect( self.__onCursorVisibleChanged )
+        
         self.__curState = TextCursor.SHOW_CURSOR
         self.__timer = QtCore.QTimer()
         self.__timer.setSingleShot(False)
         self.__timer.setInterval(TextCursor.SHOW_HIDE_INTERVAL)
         self.__timer.timeout.connect(self.__onTimeout)
         self.__timer.start()
+        
+
     
     def __onTimeout(self):
         self.__curState = 1 - self.__curState
         self.cursorVisibleChangedSignal.emit()
+
+    def __onCursorVisibleChanged(self):
+        self.setVisible( True if self.isNeedShowCursor() else False )
+
+
 
 if __name__ == "__main__":
     import sys
