@@ -28,7 +28,8 @@ class TextDocument(QtCore.QObject):
         
         self.setFont( font )
 
-
+    def getMaxLineWidth(self):
+        return self.__lineMaxWidth
     def getLineCount(self):
         return len(self.__lineTextInfoDictArray)
 
@@ -53,48 +54,111 @@ class TextDocument(QtCore.QObject):
         return self.__fontMetrics
 
 
+
+
+
+
+
+
+
+
+
+
+
     # 插入一个换行符
-    def insertLineBreak(self,xyPos):
-        xPos = xyPos[0]
-        yPos = xyPos[1]
+    def insertLineBreak(self,xyIndexPosTuple):
+        xPos = xyIndexPosTuple[0]
+        yPos = xyIndexPosTuple[1]
         curLineText = self.__lineTextInfoDictArray[yPos][TextDocument.LINE_TEXT_STR]
         self.__lineTextInfoDictArray[yPos] = {TextDocument.LINE_TEXT_STR:curLineText[0:xPos]}
         self.__lineTextInfoDictArray.insert( yPos + 1 , {TextDocument.LINE_TEXT_STR:curLineText[xPos:len(curLineText)]})
 
     # 插入一段没有换行符的文本
-    def insertTextWithoutLineBreak(self,xyPos,text):        
-        xPos = xyPos[0]
-        yPos = xyPos[1]
+    def insertTextWithoutLineBreak(self,xyIndexPosTuple,text):        
+        xPos = xyIndexPosTuple[0]
+        yPos = xyIndexPosTuple[1]
         curLineText = self.__lineTextInfoDictArray[yPos][TextDocument.LINE_TEXT_STR]
         self.__lineTextInfoDictArray[yPos] = {TextDocument.LINE_TEXT_STR:curLineText[0:xPos] + text + curLineText[xPos:len(curLineText)]}
 
 
-    # 从xyPos的位置删掉length长度的字符
-    def deleteText(self,xyPos,length):
-        xPos = xyPos[0]
-        yPos = xyPos[1]
-        curLineText = self.__lineTextInfoDictArray[yPos][TextDocument.LINE_TEXT_STR]
-        rightText = curLineText[xPos:len(curLineText)]
-        if len(rightText) >= length:
-            self.__lineTextInfoDictArray[yPos] = {TextDocument.LINE_TEXT_STR:curLineText[0:xPos]+curLineText[xPos+length:len(curLineText)]}
-        else:
-            self.__lineTextInfoDictArray[yPos] = {TextDocument.LINE_TEXT_STR:curLineText[0:xPos]}
-            length -= len(rightText)
+
+    # 删掉第lineIndex行的行尾换行符，其实质是将第lineIndex和第lineIndex+1行的文本合并为一行
+    # 如果不存在第lineIndex+1行，则什么都不做
+    def __deleteLineBreak(self,lineIndex):
+        if lineIndex+1 >= len(self.__lineTextInfoDictArray):
+            return 
+        text1 = self.getLineTextByIndex(lineIndex)
+        text2 = self.getLineTextByIndex(lineIndex+1)
+        self.__lineTextInfoDictArray[lineIndex] = {TextDocument.LINE_TEXT_STR:text1+text2}
+        self.__lineTextInfoDictArray.remove( self.__lineTextInfoDictArray[lineIndex+1] )
+        
+    # 从xyPos的位置起向右删掉length长度的字符
+    def deleteText(self,xyIndexPosTuple,length):
+        xPos = xyIndexPosTuple[0]
+        yPos = xyIndexPosTuple[1]
+        
+        while len(self.getLineTextByIndex(yPos))-xPos < length:
+            self.__deleteLineBreak(yPos)
+            length -= 1
             
-            index = yPos + 1
-            while True:
-                if index >= len(self.__lineTextInfoDictArray):
-                    break
-                s = self.__lineTextInfoDictArray[index][TextDocument.LINE_TEXT_STR]
-                if length > len(s):
-                    self.__lineTextInfoDictArray.remove( self.__lineTextInfoDictArray[index] )
-                    length -= len(s)
-                else:
-                    self.__lineTextInfoDictArray[index] = {TextDocument.LINE_TEXT_STR:s[len(s)-length:len(s)]}
-                    break
-                
+        curLineText = self.__lineTextInfoDictArray[yPos][TextDocument.LINE_TEXT_STR]
+        self.__lineTextInfoDictArray[yPos] = {TextDocument.LINE_TEXT_STR:curLineText[0:xPos]+curLineText[xPos+length:len(curLineText)]}
+        
+        
     
     
+    
+    def moveLeftIndexPos(self,xyIndexPosTuple):
+        xPos = xyIndexPosTuple[0]
+        yPos = xyIndexPosTuple[1]
+
+        xPos -= 1
+        if xPos < 0:
+            if yPos <= 0:
+                xPos = 0
+                yPos = 0
+            else:            
+                yPos -= 1
+                xPos = len(self.getLineTextByIndex(yPos))
+        return (xPos,yPos)
+
+    def moveRightIndexPos(self,xyIndexPosTuple):
+        xPos = xyIndexPosTuple[0]
+        yPos = xyIndexPosTuple[1]
+
+        xPos += 1
+        if xPos > len(self.getLineTextByIndex(yPos)):
+            xPos = 0
+            yPos += 1
+            if yPos >= self.getLineCount()-1:
+                yPos = self.getLineCount()-1
+        return (xPos,yPos)
+
+        
+    def moveUpIndexPos(self,xyIndexPosTuple):
+        xPos = xyIndexPosTuple[0]
+        yPos = xyIndexPosTuple[1]
+        
+        if yPos > 0:
+            yPos -= 1
+            xPos = min([ len(self.getLineTextByIndex(yPos)),xPos ])
+        return (xPos,yPos)
+        
+    def moveDownIndexPos(self,xyIndexPosTuple):
+        xPos = xyIndexPosTuple[0]
+        yPos = xyIndexPosTuple[1]
+        
+        if yPos < self.getLineCount()-1:
+            yPos += 1
+            xPos = min([ len(self.getLineTextByIndex(yPos)),xPos ])    
+        return (xPos,yPos)
+        
+        
+        
+        
+        
+        
+
     
     
     
@@ -106,31 +170,35 @@ class TextDocument(QtCore.QObject):
         self.__lineMaxWidth = max( [ self.__lineMaxWidth,lineWidth ] )
         return True
     
+    # 以下几个方法的参数outOfIndexValue，是指当传入的index越限时，将会返回的值
     # 获取某行的文本
-    def getLineTextByIndex(self,index):
+    def getLineTextByIndex(self,index,outOfIndexValue=None):
         if index >= len(self.__lineTextInfoDictArray):
-            return None
+            return outOfIndexValue
         return self.__lineTextInfoDictArray[index][TextDocument.LINE_TEXT_STR]
-    def getCharWidthArrayByIndex(self,index):
+
+    def getCharWidthArrayByIndex(self,index,outOfIndexValue=None):
         if index >= len(self.__lineTextInfoDictArray):
-            return None
+            return outOfIndexValue
         if self.__lineTextInfoDictArray[index].get(TextDocument.CHAR_WIDTH_ARRAY) == None:
             self.__refreshLineTextInfoDictByIndex(index)
         return self.__lineTextInfoDictArray[index][TextDocument.CHAR_WIDTH_ARRAY]
-    def getNormalLineTextPixmapByIndex(self,index):
+
+    def getNormalLineTextPixmapByIndex(self,index,outOfIndexValue=None):
         if index >= len(self.__lineTextInfoDictArray):
-            return None
+            return outOfIndexValue
         if self.__lineTextInfoDictArray[index].get(TextDocument.NORMAL_LINE_PIXMAP) == None:
             self.__refreshLineTextInfoDictByIndex(index)
         return self.__lineTextInfoDictArray[index][TextDocument.NORMAL_LINE_PIXMAP]
-    def getLineTextInfoDictByIndex(self,index):
+
+    def getLineTextInfoDictByIndex(self,index,outOfIndexValue=None):
         if index >= len(self.__lineTextInfoDictArray):
-            return None
+            return outOfIndexValue
         if self.__lineTextInfoDictArray[index].get(TextDocument.NORMAL_LINE_PIXMAP) == None:
             self.__refreshLineTextInfoDictByIndex(index)
         return self.__lineTextInfoDictArray[index]    
-    def getMaxLineWidth(self):
-        return self.__lineMaxWidth
+    
+
 
 
 
