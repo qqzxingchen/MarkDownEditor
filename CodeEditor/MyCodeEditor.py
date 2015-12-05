@@ -17,7 +17,7 @@ class MyCodeEditor(QWidget):
     def __initData(self):
         self.__codeTextWidget = CodeTextEditWidget(self)
         self.__codeTextWidget.textChangedSignal.connect(self.__onCodeTextChanged)
-        self.__codeTextWidget.lineStrLengthChangedSignal.connect(self.__onLineStrLengthChanged)
+        self.__codeTextWidget.lineTextMaxPixelChangedSignal.connect(self.__onLineStrLengthChanged)
         
         # 横纵滚动条
         self.__verticalScrollBar = QScrollBar(self)
@@ -61,7 +61,7 @@ class MyCodeEditor(QWidget):
         self.__codeTextWidget.setGeometry( 0,0,self.width()-vScrollBarWidth,self.height()-hScrollBarHeight )        
         self.__verticalScrollBar.setGeometry(self.width()-vScrollBarWidth,0,vScrollBarWidth,self.height()-hScrollBarHeight)
 
-        codeTextLeftXOff = self.__codeTextWidget.getTextLeftXOff()
+        codeTextLeftXOff = self.__codeTextWidget.getLineTextLeftXOff()
         self.__horizontalScrollBar.setGeometry(codeTextLeftXOff,self.height()-hScrollBarHeight,self.width()-vScrollBarWidth-codeTextLeftXOff,hScrollBarHeight)        
     
     '''
@@ -88,7 +88,7 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     
     mce = MyCodeEditor()
-    with codecs.open( '../tmp/temp.txt','r','utf-8' ) as templateFileObj:
+    with codecs.open( '../tmp/temp2.txt','r','utf-8' ) as templateFileObj:
         fileStr = templateFileObj.read()
         mce.setText(fileStr)
     mce.show()

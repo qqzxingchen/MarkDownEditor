@@ -41,9 +41,12 @@ class TextDocument(QtCore.QObject):
     def getSplitedChar(self):
         return self.__splitedChar
     
-    def setFont(self,fontObj):
+    def setFont(self,fontObj,fontMetrics = None):
         self.__font = fontObj
-        self.__fontMetrics = QtGui.QFontMetrics(self.__font)
+        if fontMetrics == None:
+            fontMetrics = QtGui.QFontMetrics(self.__font)
+        self.__fontMetrics = fontMetrics
+        
         self.__lineMaxWidth = 0
         for index in range(len(self.__lineTextInfoDictArray)):
             self.__lineTextInfoDictArray[index] = {TextDocument.LINE_TEXT_STR:self.__lineTextInfoDictArray[index][TextDocument.LINE_TEXT_STR]}
