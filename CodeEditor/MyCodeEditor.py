@@ -5,7 +5,6 @@ from PyQt5.QtWidgets import QWidget,QScrollBar
 from PyQt5 import QtCore
 
 from CodeEditor.CodeTextEditWidget import CodeTextEditWidget
-from CodeEditor.TextDocument import TextDocument
 
 class MyCodeEditor(QWidget):
 
@@ -64,14 +63,14 @@ class MyCodeEditor(QWidget):
 
         codeTextLeftXOff = self.__codeTextWidget.getTextLeftXOff()
         self.__horizontalScrollBar.setGeometry(codeTextLeftXOff,self.height()-hScrollBarHeight,self.width()-vScrollBarWidth-codeTextLeftXOff,hScrollBarHeight)        
-        
+    
     '''
     def mousePressEvent(self, event):
         if event.button() == QtCore.Qt.LeftButton:
             self.__verticalScrollBar.setValue( self.__verticalScrollBar.value()+1 )
         else:
             self.__horizontalScrollBar.setValue( self.__horizontalScrollBar.value()+1 )
-    ''' 
+    '''
     
 
         
