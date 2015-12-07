@@ -17,10 +17,13 @@ class EditorSettings(QtCore.QObject):
     getFuncNames = ['getLineNumberRightXOff','getLineTextLeftXOff', \
                     'getStartDisLineNumber', 'getStartDisLetterXOff', \
                     'getFont','getFontMetrics', \
-                    'getLineTextMaxPixel','isEditable']
+                    'getLineTextMaxPixel','isEditable', \
+                    'getUserDataByKey']
     setFuncNames = ['setLineNumberRightXOff','setLineTextLeftXOff', \
                     'setStartDisLineNumber','setStartDisLetterXOff', \
-                    'setLineTextMaxPixel','setFont','setEditable']
+                    'setLineTextMaxPixel','setFont','setEditable', \
+                    'setUserDataByKey']
+    clearFuncNames = ['clearUserData']
     signalNames = ['lineNumberRightXOffChangedSignal','lineTextLeftXOffChangedSignal', \
                    'startDisLineNumberChangedSignal','startDisLetterXOffChangedSignal', \
                    'lineTextMaxPixelChangedSignal','fontChangedSignal','editableChangedSignal']
@@ -40,8 +43,16 @@ class EditorSettings(QtCore.QObject):
         self.__font = QtGui.QFont('Consolas',11)
         self.__font.setBold(True)
         self.__fontMetrics = QtGui.QFontMetrics(self.__font)
-    
         
+        self.__userData = {}                # 用来记录程序使用中的暂存数据
+    
+    
+    
+    def clearUserData(self):
+        self.__userData = {}
+
+    
+    
     def getLineNumberRightXOff(self):
         return self.__lineNumberRightXOff
     def getLineTextLeftXOff(self):
@@ -58,7 +69,8 @@ class EditorSettings(QtCore.QObject):
         return self.__fontMetrics
     def isEditable(self):
         return self.__editAble
-    
+    def getUserDataByKey(self,key):
+        return self.__userData.get(key)
     
     
     def setLineNumberRightXOff(self,newLineNumberRightXOff,emitSignal = True):
@@ -111,4 +123,16 @@ class EditorSettings(QtCore.QObject):
         if emitSignal:
             self.editableChangedSignal.emit(editAble)
     
+    def setUserDataByKey(self,key,value):
+        self.__userData[key] = value
+        
+        
+        
+        
+        
+        
+
+
+
+
 

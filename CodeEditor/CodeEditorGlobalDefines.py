@@ -1,7 +1,7 @@
 
-import time
 
 from PyQt5 import QtGui, QtCore
+
 
 
 class CEGlobalDefines():
@@ -24,14 +24,20 @@ class CEGlobalDefines():
 
 
 
-# 打印函数执行的时间
-# --exeTime  
-def funcExeTime(func):
-    def newFunc(*args, **args2):  
-        t0 = time.time()  
-        retValue = func(*args, **args2)
-        print ("%.4fs taken for {%s}" % (time.time() - t0, func.__name__))
-        return retValue  
-    return newFunc  
+
+
+
+
+
+class GlobalEventFilter(QtCore.QObject):
+    def __init__(self, inputMethodCallBackFuncObj ,parent = None):
+        QtCore.QObject.__init__(self,parent)
+        self.__inputMethodCallBackFuncObj = inputMethodCallBackFuncObj
+            
+    def eventFilter(self, obj, event):
+        if event.type() == QtCore.QEvent.InputMethod:
+            self.__inputMethodCallBackFuncObj(event)
+        
+        return QtCore.QObject.eventFilter(self, obj, event)
 
 

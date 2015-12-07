@@ -13,6 +13,8 @@ from CodeEditor.EditorSettings import EditorSettings
 
 
 
+
+
 class CodeTextEditWidget(QWidget):
     # 当文本内容发生改变时，该信号将会被发射
     textChangedSignal = QtCore.pyqtSignal( TextDocument)
@@ -41,6 +43,14 @@ class CodeTextEditWidget(QWidget):
     
     
     # 将本次选中的文本与上次选中的文本进行合并
+    def setSelectTextByIndexPos(self,startIndexPosTuple,endIndexPosTuple):
+        if self.selectedTextIndexPos != None:
+            if FrequentlyUsedFunc.isIndexPosEqual( startIndexPosTuple,self.selectedTextIndexPos[0] ) and \
+                FrequentlyUsedFunc.isIndexPosEqual( endIndexPosTuple,self.selectedTextIndexPos[1] ):
+                return
+        self.selectedTextIndexPos = (startIndexPosTuple,endIndexPosTuple)
+        self.update()
+        
     def addSelectTextByIndexPos(self,startIndexPosTuple,endIndexPosTuple):
         if self.selectedTextIndexPos == None:
             self.selectedTextIndexPos = (startIndexPosTuple,endIndexPosTuple)
@@ -53,8 +63,6 @@ class CodeTextEditWidget(QWidget):
             self.selectedTextIndexPos = None
         self.update()
     def getSelectTextByIndexPos(self):
-        if hasattr(self, 'selectedTextIndexPos') == False:
-            self.selectedTextIndexPos = None
         return self.selectedTextIndexPos
     def clearSelectText(self):
         if self.selectedTextIndexPos != None:
@@ -65,10 +73,10 @@ class CodeTextEditWidget(QWidget):
     
     def __init__(self,parent=None):
         QWidget.__init__(self,parent)
-        self.setAttribute( QtCore.Qt.WA_InputMethodEnabled,True )           # 使得窗口可以调用输入法进行输入
         self.__initData()
-    
-    
+        self.focusOnCursor = lambda : self.__cursor.setFocus(QtCore.Qt.MouseFocusReason)
+        
+
     def __initData(self):
         self.__settings = EditorSettings()
         # 为了代码的可读性，将部分属性值放置到EditorSettings类中。然后将类的方法定向到本类中
@@ -80,7 +88,9 @@ class CodeTextEditWidget(QWidget):
         
         self.__cursor = TextCursor(self)
         self.__cursor.cursorPosChangedSignal.connect(self.__onCursorPosChanged)
-        self.__cursor.initPos( self.__transCurPixelPosToGloPixelPos( (self.getLineTextLeftXOff(),CEGlobalDefines.TextYOff) ),(0,0) )
+        self.__cursor.initPos( (0,0) )
+        
+        self.selectedTextIndexPos = None
         
         self.fontChangedSignal.connect(self.onFontChanged)
         self.lineNumberRightXOffChangedSignal.connect(lambda v: self.update())
@@ -94,7 +104,7 @@ class CodeTextEditWidget(QWidget):
     def onFontChanged(self,newFontObj):
         self.__textDocument.setFont(self.getFont(), self.getFontMetrics())
         cursorIndexPos = self.__cursor.getCursorIndexPos()
-        self.__cursor.setGlobalCursorPos(self.__transGloIndexPosToGloPixelPos(cursorIndexPos),cursorIndexPos )
+        self.__cursor.setGlobalCursorPos(cursorIndexPos )
         self.update()
     
     
@@ -114,17 +124,30 @@ class CodeTextEditWidget(QWidget):
     
     
     
-    
+    # leftMousePressed 和 leftMousePressed_curCursor只在以下三个函数使用，用来记录一些状态值
     def mousePressEvent(self, event):
         self.clearSelectText()
         if event.button() == QtCore.Qt.LeftButton:
-            indexPos = self.__transUserClickedPixelPosToIndexPos((event.x(),event.y()))
-            self.__cursor.setGlobalCursorPos(self.__transGloIndexPosToGloPixelPos(indexPos), indexPos)            
+            self.__cursor.setGlobalCursorPos(self.__transUserClickedPixelPosToIndexPos((event.x(),event.y())))
+            self.setUserDataByKey('leftMousePressed',True)
+            self.setUserDataByKey('leftMousePressed_curCursor',self.__cursor.getCursorIndexPos())
         elif event.button() == QtCore.Qt.RightButton:
             font = QtGui.QFont( "Consolas",self.getFont().pointSize()+1 )
             font.setBold(True)
             self.setFont(font)
-        QWidget.mousePressEvent(self,event)
+
+    def mouseMoveEvent(self, event):
+        if self.getUserDataByKey('leftMousePressed') == True:
+            indexPos = self.__transUserClickedPixelPosToIndexPos( (event.x(),event.y()) )
+            self.__cursor.setGlobalCursorPos( indexPos )
+            self.setSelectTextByIndexPos( self.getUserDataByKey('leftMousePressed_curCursor'),indexPos )
+        
+    def mouseReleaseEvent(self, event):
+        self.setUserDataByKey('leftMousePressed',None)
+        self.setUserDataByKey('leftMousePressed_curCursor',None)
+
+    
+
 
 
     def __onDirectionKey(self,key,modifiers = QtCore.Qt.NoModifier):
@@ -138,7 +161,7 @@ class CodeTextEditWidget(QWidget):
                 if item['index'] == key:
                     oldCursorIndexPos = self.__cursor.getCursorIndexPos()
                     newCursorIndexPos = item['func'](oldCursorIndexPos)
-                    self.__cursor.setGlobalCursorPos(self.__transGloIndexPosToGloPixelPos(newCursorIndexPos), newCursorIndexPos)
+                    self.__cursor.setGlobalCursorPos(newCursorIndexPos)
                     
                     if FrequentlyUsedFunc.onlyShiftModifier(modifiers):
                         self.addSelectTextByIndexPos( oldCursorIndexPos,newCursorIndexPos )
@@ -162,26 +185,36 @@ class CodeTextEditWidget(QWidget):
                 newYIndex = min([ self.getStartDisLineNumber()+1,self.__textDocument.getLineCount() ])
                 self.showLineNumberAsTop(newYIndex)       
             return 
-
-         
-
+    
+    def __onDeleteKey(self,key,modifiers = QtCore.Qt.NoModifier):
+        if self.getSelectTextByIndexPos() == None:
+            if FrequentlyUsedFunc.hasModifier(modifiers) == False:
+                if key == QtCore.Qt.Key_Delete:
+                    self.__textDocument.deleteText(self.__cursor.getCursorIndexPos(),1 )
+                elif key == QtCore.Qt.Key_Backspace:
+                    self.__onDirectionKey(QtCore.Qt.Key_Left)
+                    self.__textDocument.deleteText(self.__cursor.getCursorIndexPos(),1 )
+            elif FrequentlyUsedFunc.onlyCtrlModifier(modifiers):
+                self.__textDocument.deleteOneLine( self.__cursor.getCursorIndexPos()[1] )
+        else:
+            selectedStart = self.getSelectTextByIndexPos()[0]
+            selectedEnd = self.getSelectTextByIndexPos()[1]
+            sortedInfoDict = FrequentlyUsedFunc.sortedIndexPos( selectedStart , selectedEnd )
+            self.__cursor.setGlobalCursorPos( sortedInfoDict['first'])
+            value = self.__textDocument.calcIndexPosDistance(selectedStart,selectedEnd)            
+            self.__textDocument.deleteText(self.__cursor.getCursorIndexPos(), value)
+            self.clearSelectText()
+        self.update()
+            
     def keyPressEvent(self, event):
         # 方向键：上下左右
         if FrequentlyUsedFunc.isEventKeyIsDirectionKey(event.key()):
             self.__onDirectionKey(event.key(),event.modifiers())
-            return 
+                    
+        elif FrequentlyUsedFunc.isEventKeyIsDeleteKey(event.key()):
+            self.__onDeleteKey(event.key(),event.modifiers())
+            
         
-        # 左删和右删
-        curCursorIndexPos = self.__cursor.getCursorIndexPos()
-        if event.key() == QtCore.Qt.Key_Delete:
-            self.__textDocument.deleteText(self.__cursor.getCursorIndexPos(),1 )
-            self.__updateLineIndexRect(curCursorIndexPos[1], self.height())
-        elif event.key() == QtCore.Qt.Key_Backspace:
-            self.__onDirectionKey(QtCore.Qt.Key_Left)
-            self.__textDocument.deleteText(self.__cursor.getCursorIndexPos(),1 )
-            self.__updateLineIndexRect(curCursorIndexPos[1], self.height())
-        
-        QWidget.keyPressEvent(self,event)
         
         '''
         elif event.key() == 0x31:
@@ -299,7 +332,9 @@ class CodeTextEditWidget(QWidget):
     def __drawLineText(self,painter,visibleLineYOffInfoArray,redrawRect):
         
         # 绘制文本时，需要设置裁剪区域
-        painter.setClipRect( QtCore.QRect( self.getLineTextLeftXOff(),0,self.width()-self.getLineTextLeftXOff(),self.height() ),QtCore.Qt.IntersectClip )
+        painter.setClipRect( self.getLineTextLeftXOff(),CEGlobalDefines.TextYOff, \
+                             self.width()-self.getLineTextLeftXOff(),self.height(), \
+                             QtCore.Qt.IntersectClip )
         for item in visibleLineYOffInfoArray:
             lineYOff = item['lineYOff']
             lineIndex = item['lineIndex']
@@ -312,13 +347,15 @@ class CodeTextEditWidget(QWidget):
         
         
     def __highlightSelectedText(self,painter):
-        painter.setClipRect( QtCore.QRect( self.getLineTextLeftXOff(),0,self.width()-self.getLineTextLeftXOff(),self.height() ),QtCore.Qt.IntersectClip )
+        painter.setClipRect( self.getLineTextLeftXOff(),CEGlobalDefines.TextYOff, \
+                            self.width()-self.getLineTextLeftXOff(),self.height(), \
+                            QtCore.Qt.IntersectClip )
         lineHeight = self.getFontMetrics().lineSpacing()
         selectedTextIndexPosRangeTuple = self.getSelectTextByIndexPos()
         if selectedTextIndexPosRangeTuple != None:
-            selectedTextIndexPosRangeTuple = FrequentlyUsedFunc.sortedIndexPos( selectedTextIndexPosRangeTuple[0],selectedTextIndexPosRangeTuple[1] )
-            startIndexPos = selectedTextIndexPosRangeTuple[0]
-            endIndexPos = selectedTextIndexPosRangeTuple[1]
+            sortedIndexPosDict = FrequentlyUsedFunc.sortedIndexPos( selectedTextIndexPosRangeTuple[0],selectedTextIndexPosRangeTuple[1] )
+            startIndexPos = sortedIndexPosDict['first']
+            endIndexPos = sortedIndexPosDict['second']
 
             startCurPixelPos = self.__transGloPixelPosToCurPixelPos(self.__transGloIndexPosToGloPixelPos(startIndexPos))
             endCurPixelPos = self.__transGloPixelPosToCurPixelPos(self.__transGloIndexPosToGloPixelPos(endIndexPos))
@@ -363,10 +400,12 @@ class CodeTextEditWidget(QWidget):
             return 
         
         # 设置剪裁区域
-        painter.setClipRect( QtCore.QRect( self.getLineTextLeftXOff(),0,self.width()-self.getLineTextLeftXOff(),self.height() ),QtCore.Qt.IntersectClip )
+        painter.setClipRect( self.getLineTextLeftXOff(),CEGlobalDefines.TextYOff, \
+                             self.width()-self.getLineTextLeftXOff(),self.height() , \
+                             QtCore.Qt.IntersectClip )
         
         # 绘制光标
-        cursorPos = self.__transGloPixelPosToCurPixelPos( self.__cursor.getCursorPixelPos() )
+        cursorPos = self.__transGloPixelPosToCurPixelPos( self.__transGloIndexPosToGloPixelPos(self.__cursor.getCursorIndexPos()) )
         self.__cursor.setGeometry(cursorPos[0],cursorPos[1],CEGlobalDefines.CursorWidth,self.getFontMetrics().lineSpacing())        
         
         # 绘制光标所在行高亮

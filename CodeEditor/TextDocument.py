@@ -2,6 +2,7 @@
 
 from PyQt5 import QtCore,QtGui
 from CodeEditor.CodeEditorGlobalDefines import CEGlobalDefines
+from CodeEditor.FrequentlyUsedFunc import FrequentlyUsedFunc
 
 '''
 TextDocument.__lineTextInfoDictArray的注释信息
@@ -83,18 +84,6 @@ class TextDocument(QtCore.QObject):
         curLineText = self.__lineTextInfoDictArray[yPos][TextDocument.LINE_TEXT_STR]
         self.__lineTextInfoDictArray[yPos] = {TextDocument.LINE_TEXT_STR:curLineText[0:xPos] + text + curLineText[xPos:len(curLineText)]}
 
-
-
-    # 删掉第lineIndex行的行尾换行符，其实质是将第lineIndex和第lineIndex+1行的文本合并为一行
-    # 如果不存在第lineIndex+1行，则什么都不做
-    def __deleteLineBreak(self,lineIndex):
-        if lineIndex+1 >= len(self.__lineTextInfoDictArray):
-            return 
-        text1 = self.getLineTextByIndex(lineIndex)
-        text2 = self.getLineTextByIndex(lineIndex+1)
-        self.__lineTextInfoDictArray[lineIndex] = {TextDocument.LINE_TEXT_STR:text1+text2}
-        self.__lineTextInfoDictArray.remove( self.__lineTextInfoDictArray[lineIndex+1] )
-        
     # 从xyPos的位置起向右删掉length长度的字符
     def deleteText(self,xyIndexPosTuple,length):
         xPos = xyIndexPosTuple[0]
@@ -107,7 +96,41 @@ class TextDocument(QtCore.QObject):
         curLineText = self.__lineTextInfoDictArray[yPos][TextDocument.LINE_TEXT_STR]
         self.__lineTextInfoDictArray[yPos] = {TextDocument.LINE_TEXT_STR:curLineText[0:xPos]+curLineText[xPos+length:len(curLineText)]}
         
+    def deleteOneLine(self,yIndexPos):
+        self.__lineTextInfoDictArray.remove( self.__lineTextInfoDictArray[yIndexPos] )
+
+
+
+    # 删掉第lineIndex行的行尾换行符，其实质是将第lineIndex和第lineIndex+1行的文本合并为一行
+    # 如果不存在第lineIndex+1行，则什么都不做
+    def __deleteLineBreak(self,lineIndex):
+        if lineIndex+1 >= len(self.__lineTextInfoDictArray):
+            return 
+        text1 = self.getLineTextByIndex(lineIndex)
+        text2 = self.getLineTextByIndex(lineIndex+1)
+        self.__lineTextInfoDictArray[lineIndex] = {TextDocument.LINE_TEXT_STR:text1+text2}
+        self.__lineTextInfoDictArray.remove( self.__lineTextInfoDictArray[lineIndex+1] )
         
+
+    
+    def calcIndexPosDistance(self,indexPos1,indexPos2,absValue = True):        
+        
+        sortedIndexPosDict = FrequentlyUsedFunc.sortedIndexPos(indexPos1, indexPos2)
+        if (sortedIndexPosDict['changed'] == True) and (absValue == False):
+            positiveSign = -1
+        else:
+            positiveSign = 1
+        
+        indexPosA = sortedIndexPosDict['first']
+        indexPosB = sortedIndexPosDict['second']
+        if indexPosA[1] == indexPosB[1]:
+            absV = indexPosB[0] - indexPosA[0]
+        else:
+            absV = len(self.getLineTextByIndex(indexPosA[1])) - indexPosA[0] + 1
+            absV += indexPosB[0]
+            for index in range( indexPosA[1]+1,indexPosB[1] ):
+                absV += len(self.getLineTextByIndex(index)) + 1            
+        return positiveSign * absV
     
     
     

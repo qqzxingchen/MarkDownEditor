@@ -5,13 +5,24 @@ from PyQt5.QtWidgets import QWidget,QScrollBar
 from PyQt5 import QtCore
 
 from CodeEditor.CodeTextEditWidget import CodeTextEditWidget
+from CodeEditor.CodeEditorGlobalDefines import GlobalEventFilter
 
 class MyCodeEditor(QWidget):
 
     def __init__(self,parent=None):
         QWidget.__init__(self,parent)
+        self.setAttribute( QtCore.Qt.WA_InputMethodEnabled,True ) 
         
         self.__initData()
+        
+        self.__callBack = GlobalEventFilter(self.callBackFunc)
+        app.installEventFilter( self.__callBack )
+        
+        
+    def callBackFunc(self,event):
+        if len(event.commitString()) == 0:
+            return
+        print (event.commitString())
 
 
     def __initData(self):
@@ -53,7 +64,9 @@ class MyCodeEditor(QWidget):
         
     def __onHScrollValueChanged(self):
         self.__codeTextWidget.showLeftXOffAsLeft(self.__horizontalScrollBar.value())
-        
+    
+    
+    
     
     def resizeEvent(self, event):
         vScrollBarWidth = self.__verticalScrollBar.width()        
@@ -64,19 +77,23 @@ class MyCodeEditor(QWidget):
         codeTextLeftXOff = self.__codeTextWidget.getLineTextLeftXOff()
         self.__horizontalScrollBar.setGeometry(codeTextLeftXOff,self.height()-hScrollBarHeight,self.width()-vScrollBarWidth-codeTextLeftXOff,hScrollBarHeight)        
     
-    '''
-    def mousePressEvent(self, event):
-        if event.button() == QtCore.Qt.LeftButton:
-            self.__verticalScrollBar.setValue( self.__verticalScrollBar.value()+1 )
-        else:
-            self.__horizontalScrollBar.setValue( self.__horizontalScrollBar.value()+1 )
-    '''
     
+    def mousePressEvent(self, event):
+        self.__codeTextWidget.mousePressEvent(event)
 
+
+    def keyPressEvent(self, event):
+        self.__codeTextWidget.setFocus(QtCore.Qt.MouseFocusReason)
+        self.__codeTextWidget.focusOnCursor()
+
+        self.__codeTextWidget.keyPressEvent(event)
+    
+    def wheelEvent(self, event):
+        changedV = 3 if event.angleDelta().y() < 0 else -3
+        self.__verticalScrollBar.setValue( self.__verticalScrollBar.value() + changedV )
+    
         
-
         
-
 
 
 
@@ -88,7 +105,7 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     
     mce = MyCodeEditor()
-    with codecs.open( '../tmp/temp2.txt','r','utf-8' ) as templateFileObj:
+    with codecs.open( '../tmp/temp.txt','r','utf-8' ) as templateFileObj:
         fileStr = templateFileObj.read()
         mce.setText(fileStr)
     mce.show()
