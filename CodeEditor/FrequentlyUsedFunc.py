@@ -45,6 +45,19 @@ class FrequentlyUsedFunc:
 
 
 
+    @staticmethod
+    def splitTextToLines(text):
+        splitN = text.split('\n')
+        splitRN = text.split('\r\n')
+        if len(splitN) == len(splitRN):
+            splitedTexts = splitRN
+            splitedChar = '\r\n'
+        else:
+            splitedTexts = splitN
+            splitedChar = '\n'
+        return RetuInfo.info( splitedTexts=splitedTexts,splitedChar=splitedChar )
+
+
 
 
     # 打印函数执行的时间

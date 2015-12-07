@@ -1,7 +1,7 @@
 
 import sys
 
-from PyQt5.QtWidgets import QWidget
+from PyQt5.QtWidgets import QWidget, QApplication
 from PyQt5 import QtGui
 from PyQt5 import QtCore
 
@@ -48,7 +48,10 @@ class CodeTextEditWidget(QWidget):
             if FrequentlyUsedFunc.isIndexPosEqual( startIndexPosTuple,self.selectedTextIndexPos[0] ) and \
                 FrequentlyUsedFunc.isIndexPosEqual( endIndexPosTuple,self.selectedTextIndexPos[1] ):
                 return
-        self.selectedTextIndexPos = (startIndexPosTuple,endIndexPosTuple)
+        if FrequentlyUsedFunc.isIndexPosEqual( startIndexPosTuple,endIndexPosTuple ) == True:
+            self.selectedTextIndexPos = None
+        else:
+            self.selectedTextIndexPos = (startIndexPosTuple,endIndexPosTuple)
         self.update()
         
     def addSelectTextByIndexPos(self,startIndexPosTuple,endIndexPosTuple):
@@ -74,7 +77,7 @@ class CodeTextEditWidget(QWidget):
     def __init__(self,parent=None):
         QWidget.__init__(self,parent)
         self.__initData()
-        self.focusOnCursor = lambda : self.__cursor.setFocus(QtCore.Qt.MouseFocusReason)
+        self.setCursorFocusOn = lambda event: self.__cursor.setFocus(QtCore.Qt.MouseFocusReason)
         
 
     def __initData(self):
@@ -224,9 +227,14 @@ class CodeTextEditWidget(QWidget):
             self.__textDocument.insertLineBreak( self.__cursor.getCursorIndexPos() )
             self.__updateLineIndexRect(yPos, self.height()) 
         '''
-
-
-
+    
+    
+    def insertStr(self,event):
+        if len(event.commitString()) == 0:
+            return
+        indexPos = self.__textDocument.insertText(self.__cursor.getCursorIndexPos(),event.commitString())  
+        self.__cursor.setGlobalCursorPos(indexPos)
+        self.update()
     
         
         

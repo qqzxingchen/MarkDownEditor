@@ -66,24 +66,34 @@ class TextDocument(QtCore.QObject):
 
 
 
-
-
+    def insertText(self,xyIndexPosTuple,text):
+        retuDict = FrequentlyUsedFunc.splitTextToLines(text)
+        splitedTexts = retuDict['splitedTexts']
+        if len(splitedTexts) == 0:
+            return
+        indexPos = xyIndexPosTuple
+        for index in range(len( splitedTexts )-1):
+            indexPos = self.__insertTextWithoutLineBreak( indexPos , splitedTexts[index])
+            indexPos = self.__insertLineBreak( indexPos )
+        return self.__insertTextWithoutLineBreak( indexPos , splitedTexts[-1])
 
     # 插入一个换行符
-    def insertLineBreak(self,xyIndexPosTuple):
+    def __insertLineBreak(self,xyIndexPosTuple):
         xPos = xyIndexPosTuple[0]
         yPos = xyIndexPosTuple[1]
         curLineText = self.__lineTextInfoDictArray[yPos][TextDocument.LINE_TEXT_STR]
         self.__lineTextInfoDictArray[yPos] = {TextDocument.LINE_TEXT_STR:curLineText[0:xPos]}
         self.__lineTextInfoDictArray.insert( yPos + 1 , {TextDocument.LINE_TEXT_STR:curLineText[xPos:len(curLineText)]})
-
+        return (0,yPos+1)
+        
     # 插入一段没有换行符的文本
-    def insertTextWithoutLineBreak(self,xyIndexPosTuple,text):        
+    def __insertTextWithoutLineBreak(self,xyIndexPosTuple,text):        
         xPos = xyIndexPosTuple[0]
         yPos = xyIndexPosTuple[1]
         curLineText = self.__lineTextInfoDictArray[yPos][TextDocument.LINE_TEXT_STR]
         self.__lineTextInfoDictArray[yPos] = {TextDocument.LINE_TEXT_STR:curLineText[0:xPos] + text + curLineText[xPos:len(curLineText)]}
-
+        return ( len(curLineText[0:xPos] + text) ,yPos)
+        
     # 从xyPos的位置起向右删掉length长度的字符
     def deleteText(self,xyIndexPosTuple,length):
         xPos = xyIndexPosTuple[0]
@@ -254,18 +264,12 @@ class TextDocument(QtCore.QObject):
         self.setLineTextInfoDict(index, charWidthInfoArr, pixmapObjNormal,curXOff - letterRect.width())
 
     def __afterTextChanged(self):
-        splitN = self.__text.split('\n')
-        splitRN = self.__text.split('\r\n')
-        if len(splitN) == len(splitRN):
-            splitedTexts = splitRN
-            self.__splitedChar = '\r\n'
-        else:
-            splitedTexts = splitN
-            self.__splitedChar = '\n'
-            
+        retuDict = FrequentlyUsedFunc.splitTextToLines(self.__text)
+        self.__splitedChar = retuDict['splitedChar']
+
         self.__lineTextInfoDictArray = []
         self.__lineMaxWidth = 0
-        for text in splitedTexts:
+        for text in retuDict['splitedTexts']:
             self.__lineTextInfoDictArray.append({TextDocument.LINE_TEXT_STR:text})
     
 

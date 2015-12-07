@@ -30,14 +30,27 @@ class CEGlobalDefines():
 
 
 class GlobalEventFilter(QtCore.QObject):
-    def __init__(self, inputMethodCallBackFuncObj ,parent = None):
+    def __init__(self,parent = None):
         QtCore.QObject.__init__(self,parent)
-        self.__inputMethodCallBackFuncObj = inputMethodCallBackFuncObj
-            
+        self.__funcObjs__InputMethod = []
+        self.__funcObjs__FocusIn = []
     def eventFilter(self, obj, event):
+        funcObjArr = []        
         if event.type() == QtCore.QEvent.InputMethod:
-            self.__inputMethodCallBackFuncObj(event)
+            funcObjArr = self.__funcObjs__InputMethod
+        elif event.type() == QtCore.QEvent.FocusIn:
+            funcObjArr = self.__funcObjs__FocusIn
         
+        for funcObjs in funcObjArr:
+            funcObjs(event)
+
         return QtCore.QObject.eventFilter(self, obj, event)
 
+    
+    def regListener_InputMethod(self,funcObj):
+        self.__funcObjs__InputMethod.append( funcObj )
+    def regListener_FocusIn(self,funcObj):
+        self.__funcObjs__FocusIn.append(funcObj)
+    
+    
 

@@ -11,18 +11,14 @@ class MyCodeEditor(QWidget):
 
     def __init__(self,parent=None):
         QWidget.__init__(self,parent)
-        self.setAttribute( QtCore.Qt.WA_InputMethodEnabled,True ) 
-        
+        self.setAttribute( QtCore.Qt.WA_InputMethodEnabled,True )
         self.__initData()
         
-        self.__callBack = GlobalEventFilter(self.callBackFunc)
+        self.__callBack = GlobalEventFilter()
+        self.__callBack.regListener_InputMethod( self.__codeTextWidget.insertStr )
+        self.__callBack.regListener_FocusIn( self.__codeTextWidget.setCursorFocusOn )
         app.installEventFilter( self.__callBack )
-        
-        
-    def callBackFunc(self,event):
-        if len(event.commitString()) == 0:
-            return
-        print (event.commitString())
+    
 
 
     def __initData(self):
@@ -83,16 +79,12 @@ class MyCodeEditor(QWidget):
 
 
     def keyPressEvent(self, event):
-        self.__codeTextWidget.setFocus(QtCore.Qt.MouseFocusReason)
-        self.__codeTextWidget.focusOnCursor()
-
         self.__codeTextWidget.keyPressEvent(event)
+        
     
     def wheelEvent(self, event):
         changedV = 3 if event.angleDelta().y() < 0 else -3
         self.__verticalScrollBar.setValue( self.__verticalScrollBar.value() + changedV )
-    
-        
         
 
 
