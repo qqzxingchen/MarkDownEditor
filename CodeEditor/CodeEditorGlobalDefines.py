@@ -12,16 +12,18 @@ class CEGlobalDefines():
 
     
 
-    
+    # 画笔    
     LineNumberPen = QtGui.QPen( QtGui.QColor( 255,0,0 ) )       # 绘制行文本的QPen
     LineStrPen = QtGui.QPen( QtGui.QColor( 0,0,0 ) )            # 绘制行字符串的QPen
+    
+    TextTokenPen = QtGui.QPen( QtGui.QColor( 0,0,255 ) )        # 关键字高亮时用的绘制画刷
 
+
+    # 画刷
     LineSelectedBKBrush = QtGui.QBrush( QtGui.QColor( 100,200,0,100 ),QtCore.Qt.SolidPattern )      # 绘制输入焦点所在行的行背景画刷
     LineUnSelectedBKBrush = QtGui.QBrush( QtGui.QColor( 100,200,0,100 ),QtCore.Qt.NoBrush )
     
-    TextSelectedBKBrush = QtGui.QBrush( QtGui.QColor( 200,100,0,150 ),QtCore.Qt.SolidPattern )
-    
-
+    TextSelectedBKBrush = QtGui.QBrush( QtGui.QColor( 200,100,0,150 ),QtCore.Qt.SolidPattern )      # 选中文本高亮时用的背景画刷
 
 
 

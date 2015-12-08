@@ -198,12 +198,13 @@ class TextDocument(QtCore.QObject):
     
     
     
-    def setLineTextInfoDict(self,index,charWidthArray,normalLineTextPixmap,lineWidth):
+    def setLineTextInfoDict(self,index,charWidthArray,normalLineTextPixmap,lineWidth = None):
         if index >= len(self.__lineTextInfoDictArray):
             return False
         self.__lineTextInfoDictArray[index][TextDocument.CHAR_WIDTH_ARRAY] = charWidthArray
         self.__lineTextInfoDictArray[index][TextDocument.NORMAL_LINE_PIXMAP] = normalLineTextPixmap 
-        self.__lineMaxWidth = max( [ self.__lineMaxWidth,lineWidth ] )
+        if lineWidth != None:
+            self.__lineMaxWidth = max( [ self.__lineMaxWidth,lineWidth ] )
         return True
     
     # 以下几个方法的参数outOfIndexValue，是指当传入的index越限时，将会返回的值
@@ -241,27 +242,43 @@ class TextDocument(QtCore.QObject):
     # 根据当前最新的文本，来重绘文本信息Dict
     def __refreshLineTextInfoDictByIndex(self,index):
         curLineText = self.getLineTextByIndex(index)
-        maxPixelLength = len(curLineText)*( CEGlobalDefines.CharDistancePixel + \
-                                            self.__fontMetrics.maxWidth() * 2 )
+        charCorrespondedQPenArr = self.__findCharCorrespondedQPen(curLineText)
         
-        pixmapObjNormal = QtGui.QPixmap(maxPixelLength,self.__fontMetrics.lineSpacing())
-        pixmapObjNormal.fill(QtGui.QColor(0,0,0,0))
-        painterNormal = QtGui.QPainter(pixmapObjNormal)
-        painterNormal.setPen(CEGlobalDefines.LineStrPen)
-        painterNormal.setFont(self.__font)
-
+        maxPixelLength = len(curLineText)*( CEGlobalDefines.CharDistancePixel + self.__fontMetrics.maxWidth() * 2 )
+        pixmapObj = QtGui.QPixmap(maxPixelLength,self.__fontMetrics.lineSpacing())
+        pixmapObj.fill(QtGui.QColor(255,255,255,0))
+        painter = QtGui.QPainter(pixmapObj)
+        painter.setFont(self.__font)
+            
         curXOff = 0
         charWidthInfoArr = []
         letterRect = QtCore.QRect(0,0,0,0)
-        for curChar in curLineText:
+        for i in range(len(curLineText)):
+            if charCorrespondedQPenArr[i] != painter.pen():
+                painter.setPen(charCorrespondedQPenArr[i])            
+            curChar = curLineText[i]
             curXOff += CEGlobalDefines.CharDistancePixel
-            letterRect = painterNormal.boundingRect(curXOff,0,0,0,0,curChar)
-            painterNormal.drawText(letterRect,0,curChar)
+            letterRect = painter.boundingRect(curXOff,0,0,0,0,curChar)
+            painter.drawText(letterRect,0,curChar)
             curXOff += letterRect.width()
             charWidthInfoArr.append( letterRect.width() )
+        del painter   # 删除当前的painter，才能继续为pixmap创建新的画笔并绘制
         
-        # 最大宽度需要减掉最后一个字符导致的字符长度增长，这样可以保证即使用户把滚动条拉倒最右边，也有字符显示出来        
-        self.setLineTextInfoDict(index, charWidthInfoArr, pixmapObjNormal,curXOff - letterRect.width())
+        # 最大宽度需要减掉最后一个字符导致的字符长度增长，这样可以保证即使用户把滚动条拉倒最右边，也有字符显示出来
+        self.setLineTextInfoDict(index, charWidthInfoArr, pixmapObj,curXOff - letterRect.width())
+
+
+
+    def __findCharCorrespondedQPen(self,lineStr):
+        arr = []
+        for c in lineStr:
+            if c == '1':
+                arr.append(CEGlobalDefines.LineStrPen)
+            else:
+                arr.append(CEGlobalDefines.TextTokenPen)
+        return arr
+
+
 
     def __afterTextChanged(self):
         retuDict = FrequentlyUsedFunc.splitTextToLines(self.__text)

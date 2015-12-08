@@ -58,7 +58,7 @@ class FrequentlyUsedFunc:
         return RetuInfo.info( splitedTexts=splitedTexts,splitedChar=splitedChar )
 
 
-
+    TotalTime = 0
 
     # 打印函数执行的时间
     # 用法：@FrequentlyUsedFunc.funcExeTime
@@ -67,7 +67,10 @@ class FrequentlyUsedFunc:
         def newFunc(*args, **args2):  
             t0 = time.time()  
             retValue = func(*args, **args2)
-            print ("%.4fs taken for {%s}" % (time.time() - t0, func.__name__))
+
+            FrequentlyUsedFunc.TotalTime += time.time() - t0
+            print ("%.10fs taken for {%s},total is %.10fs" % (time.time() - t0, func.__name__, FrequentlyUsedFunc.TotalTime))
+            
             return retValue  
         return newFunc  
 

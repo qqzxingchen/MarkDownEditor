@@ -1,7 +1,7 @@
 
 import sys
 
-from PyQt5.QtWidgets import QWidget, QApplication
+from PyQt5.QtWidgets import QWidget
 from PyQt5 import QtGui
 from PyQt5 import QtCore
 
@@ -95,7 +95,7 @@ class CodeTextEditWidget(QWidget):
         
         self.selectedTextIndexPos = None
         
-        self.fontChangedSignal.connect(self.onFontChanged)
+        self.fontChangedSignal.connect(self.__onFontChanged)
         self.lineNumberRightXOffChangedSignal.connect(lambda v: self.update())
         self.lineTextLeftXOffChangedSignal.connect(lambda v: self.update())
         self.startDisLineNumberChangedSignal.connect(lambda v: self.update())
@@ -104,7 +104,7 @@ class CodeTextEditWidget(QWidget):
         self.editableChangedSignal.connect(lambda v: self.update())
         
     
-    def onFontChanged(self,newFontObj):
+    def __onFontChanged(self,newFontObj):
         self.__textDocument.setFont(self.getFont(), self.getFontMetrics())
         cursorIndexPos = self.__cursor.getCursorIndexPos()
         self.__cursor.setGlobalCursorPos(cursorIndexPos )
@@ -301,6 +301,8 @@ class CodeTextEditWidget(QWidget):
             yOffArray.append( {'lineIndex':i,'lineYOff':curY} )
         return yOffArray
     
+    
+
       
 
     def paintEvent(self,event):
@@ -377,7 +379,7 @@ class CodeTextEditWidget(QWidget):
             # 如果被选中文本是多行文本
             else:
                 painter.fillRect( startCurPixelPos[0], startCurPixelPos[1], \
-                                  self.width(), lineHeight ,  \
+                                  self.width()-startCurPixelPos[0], lineHeight ,  \
                                   CEGlobalDefines.TextSelectedBKBrush )
                 painter.fillRect( 0,startCurPixelPos[1]+lineHeight, \
                                   self.width(), endCurPixelPos[1]-startCurPixelPos[1]-lineHeight, \
@@ -437,7 +439,7 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
 
     mce = CodeTextEditWidget()
-    with codecs.open( '../tmp/temp2.txt','r','utf-8' ) as templateFileObj:
+    with codecs.open( '../tmp/temp.txt','r','utf-8' ) as templateFileObj:
     #with codecs.open( 'CodeTextEditWidget.py','r','utf-8' ) as templateFileObj:
     
         fileStr = templateFileObj.read()
