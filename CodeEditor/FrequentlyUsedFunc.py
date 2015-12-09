@@ -14,6 +14,18 @@ class FrequentlyUsedFunc:
     def isEventKeyIsDeleteKey(key):
         return [QtCore.Qt.Key_Backspace,QtCore.Qt.Key_Delete].count(key) != 0
 
+    @staticmethod
+    def isEventKeyIsNumber(key):
+        return (QtCore.Qt.Key_0 <= key) and (key <= QtCore.Qt.Key_9)
+    
+    @staticmethod
+    def isEventKeyIsChar(key):
+        return (QtCore.Qt.Key_A <= key) and (key <= QtCore.Qt.Key_Z)
+
+
+
+
+
     hasModifier         = lambda modifiers:int(modifiers) != int(QtCore.Qt.NoModifier)
     hasShiftModifier    = lambda modifiers:int(modifiers) &  int(QtCore.Qt.ShiftModifier) != 0
     hasCtrlModifier     = lambda modifiers:int(modifiers) &  int(QtCore.Qt.ControlModifier) != 0

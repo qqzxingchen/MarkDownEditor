@@ -153,7 +153,10 @@ class CodeTextEditWidget(QWidget):
 
 
 
-    def __onDirectionKey(self,key,modifiers = QtCore.Qt.NoModifier):
+    def __onDirectionKey(self,event):
+        key = event.key()
+        modifiers = event.modifiers()
+        
         # 只按下方向键、或者同时只按下shift键时
         if ( FrequentlyUsedFunc.hasModifier(modifiers) == False ) or ( FrequentlyUsedFunc.onlyShiftModifier(modifiers) ):
             arr = [{'index':QtCore.Qt.Key_Left ,'func':self.__textDocument.moveLeftIndexPos},
@@ -189,14 +192,18 @@ class CodeTextEditWidget(QWidget):
                 self.showLineNumberAsTop(newYIndex)       
             return 
     
-    def __onDeleteKey(self,key,modifiers = QtCore.Qt.NoModifier):
+    def __onDeleteKey(self,event):
+        key = event.key()
+        modifiers = event.modifiers()
+
         if self.getSelectTextByIndexPos() == None:
             if FrequentlyUsedFunc.hasModifier(modifiers) == False:
                 if key == QtCore.Qt.Key_Delete:
                     self.__textDocument.deleteText(self.__cursor.getCursorIndexPos(),1 )
-                elif key == QtCore.Qt.Key_Backspace:
-                    self.__onDirectionKey(QtCore.Qt.Key_Left)
-                    self.__textDocument.deleteText(self.__cursor.getCursorIndexPos(),1 )
+                elif key == QtCore.Qt.Key_Backspace:                    
+                    newCursorIndexPos = self.__textDocument.moveLeftIndexPos( self.__cursor.getCursorIndexPos() )
+                    self.__cursor.setGlobalCursorPos(newCursorIndexPos)
+                    self.__textDocument.deleteText(newCursorIndexPos,1 )
             elif FrequentlyUsedFunc.onlyCtrlModifier(modifiers):
                 self.__textDocument.deleteOneLine( self.__cursor.getCursorIndexPos()[1] )
         else:
@@ -208,25 +215,26 @@ class CodeTextEditWidget(QWidget):
             self.__textDocument.deleteText(self.__cursor.getCursorIndexPos(), value)
             self.clearSelectText()
         self.update()
-            
+    
+    def __onDisableCharKey(self,event):
+        indexPos = self.__textDocument.insertText(self.__cursor.getCursorIndexPos(), event.text())
+        self.__cursor.setGlobalCursorPos(indexPos)
+        self.update()
+    
     def keyPressEvent(self, event):
+        
         # 方向键：上下左右
         if FrequentlyUsedFunc.isEventKeyIsDirectionKey(event.key()):
-            self.__onDirectionKey(event.key(),event.modifiers())
+            self.__onDirectionKey(event)
                     
         elif FrequentlyUsedFunc.isEventKeyIsDeleteKey(event.key()):
-            self.__onDeleteKey(event.key(),event.modifiers())
+            self.__onDeleteKey(event)
+        
+        elif FrequentlyUsedFunc.isEventKeyIsNumber(event.key()) or FrequentlyUsedFunc.isEventKeyIsChar(event.key()):
+            self.__onDisableCharKey(event)
+
             
         
-        
-        '''
-        elif event.key() == 0x31:
-            self.__textDocument.insertTextWithoutLineBreak( self.__cursor.getCursorIndexPos() , 'xc')
-            self.__updateLineIndexRect(yPos, self.__fontMetrics.lineSpacing())
-        elif event.key() == 0x32:
-            self.__textDocument.insertLineBreak( self.__cursor.getCursorIndexPos() )
-            self.__updateLineIndexRect(yPos, self.height()) 
-        '''
     
     
     def insertStr(self,event):
@@ -439,7 +447,7 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
 
     mce = CodeTextEditWidget()
-    with codecs.open( '../tmp/temp.txt','r','utf-8' ) as templateFileObj:
+    with codecs.open( '../tmp/temp3.txt','r','utf-8' ) as templateFileObj:
     #with codecs.open( 'CodeTextEditWidget.py','r','utf-8' ) as templateFileObj:
     
         fileStr = templateFileObj.read()
