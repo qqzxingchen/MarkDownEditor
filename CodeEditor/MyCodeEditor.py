@@ -32,12 +32,14 @@ class MyCodeEditor(QWidget):
         self.__verticalScrollBar.setMinimumWidth(self.__verticalScrollBar.width())
         self.__verticalScrollBar.setMaximumWidth(self.__verticalScrollBar.width())  
         self.__verticalScrollBar.valueChanged.connect(self.__onVScrollValueChanged)
-        
+        self.__codeTextWidget.startDisLineNumberChangedSignal.connect(self.__verticalScrollBar.setValue)
+    
         self.__horizontalScrollBar = QScrollBar(QtCore.Qt.Horizontal,self)
         self.__horizontalScrollBar.adjustSize()
         self.__horizontalScrollBar.setMinimumHeight(self.__horizontalScrollBar.height())
         self.__horizontalScrollBar.setMaximumHeight(self.__horizontalScrollBar.height())
         self.__horizontalScrollBar.valueChanged.connect(self.__onHScrollValueChanged)
+        self.__codeTextWidget.startDisLetterXOffChangedSignal.connect(self.__horizontalScrollBar.setValue)
         
         self.setText = self.__codeTextWidget.setText
 
@@ -97,7 +99,8 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     
     mce = MyCodeEditor()
-    with codecs.open( '../tmp/temp.txt','r','utf-8' ) as templateFileObj:
+    #with codecs.open( '../tmp/temp.txt','r','utf-8' ) as templateFileObj:
+    with codecs.open( 'CodeTextEditWidget.py','r','utf-8' ) as templateFileObj:
         fileStr = templateFileObj.read()
         mce.setText(fileStr)
     mce.show()

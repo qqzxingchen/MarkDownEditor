@@ -1,5 +1,5 @@
 
-
+import re
 from PyQt5 import QtCore,QtGui
 from CodeEditor.CodeEditorGlobalDefines import CEGlobalDefines
 from CodeEditor.FrequentlyUsedFunc import FrequentlyUsedFunc
@@ -19,15 +19,15 @@ class TextDocument(QtCore.QObject):
     CHAR_WIDTH_ARRAY = 'charWidthArray'
     NORMAL_LINE_PIXMAP = 'normalLineTextPixmap'
 
-
     def __init__(self,font=QtGui.QFont('Consolas',11) ,parent=None):
         QtCore.QObject.__init__(self,parent)
         
-        # 注释看文件头
+        # 注释看文件头的注释
         self.__lineTextInfoDictArray = []
         self.__lineMaxWidth = 0             # 实时保存最大像素宽度
-        
         self.setFont( font )
+
+
 
     def getMaxLineWidth(self):
         return self.__lineMaxWidth
@@ -41,6 +41,7 @@ class TextDocument(QtCore.QObject):
         return self.text
     def getSplitedChar(self):
         return self.__splitedChar
+    
     
     def setFont(self,fontObj,fontMetrics = None):
         self.__font = fontObj
@@ -110,7 +111,6 @@ class TextDocument(QtCore.QObject):
         self.__lineTextInfoDictArray.remove( self.__lineTextInfoDictArray[yIndexPos] )
 
 
-
     # 删掉第lineIndex行的行尾换行符，其实质是将第lineIndex和第lineIndex+1行的文本合并为一行
     # 如果不存在第lineIndex+1行，则什么都不做
     def __deleteLineBreak(self,lineIndex):
@@ -120,9 +120,19 @@ class TextDocument(QtCore.QObject):
         text2 = self.getLineTextByIndex(lineIndex+1)
         self.__lineTextInfoDictArray[lineIndex] = {TextDocument.LINE_TEXT_STR:text1+text2}
         self.__lineTextInfoDictArray.remove( self.__lineTextInfoDictArray[lineIndex+1] )
+    
+    
+    
+    
+    
+    
+    
+    
+    
         
 
-    
+    # 计算从indexPos1到indexPos2的距离（认为indexPos1是起点，indexPos2是终点）
+    # 如果absValue为True，则返回距离的绝对值，否则，
     def calcIndexPosDistance(self,indexPos1,indexPos2,absValue = True):        
         
         sortedIndexPosDict = FrequentlyUsedFunc.sortedIndexPos(indexPos1, indexPos2)
@@ -139,8 +149,43 @@ class TextDocument(QtCore.QObject):
             absV = len(self.getLineTextByIndex(indexPosA[1])) - indexPosA[0] + 1
             absV += indexPosB[0]
             for index in range( indexPosA[1]+1,indexPosB[1] ):
-                absV += len(self.getLineTextByIndex(index)) + 1            
+                absV += len(self.getLineTextByIndex(index)) + 1
         return positiveSign * absV
+    
+    # 判断xyIndexPosTuple所标示的光标位置是否存在
+    def isIndexPosValid(self,xyIndexPosTuple):
+        xPos = xyIndexPosTuple[0]
+        yPos = xyIndexPosTuple[1]
+        lineText = self.getLineTextByIndex(yPos)
+        if lineText == None:
+            return False
+        if (xPos < 0) or (xPos > len(lineText)):
+            return False
+        return True
+    def formatIndexPos(self,xyIndexPosTuple):
+        xPos = xyIndexPosTuple[0]
+        yPos = xyIndexPosTuple[1]
+        lineText = self.getLineTextByIndex(yPos)
+        if lineText == None:
+            if yPos < 0:
+                return (0,0)
+            else:
+                l = self.getLineCount()-1
+                return ( len(self.getLineTextByIndex(l)),l )
+        else:
+            if xPos < 0:
+                return ( 0,yPos )
+            elif xPos > len(lineText):
+                return ( len(lineText),yPos )
+            else:
+                return ( xPos,yPos )
+    
+    
+    
+    
+    
+    
+    
     
     
     
@@ -170,7 +215,6 @@ class TextDocument(QtCore.QObject):
                 yPos = self.getLineCount()-1
         return (xPos,yPos)
 
-        
     def moveUpIndexPos(self,xyIndexPosTuple):
         xPos = xyIndexPosTuple[0]
         yPos = xyIndexPosTuple[1]
@@ -195,11 +239,14 @@ class TextDocument(QtCore.QObject):
         
         
 
-    
-    
+    def __indexIsValid(self,index):
+        if (index < 0) or (index >= len(self.__lineTextInfoDictArray)):
+            return False
+        else:
+            return True
     
     def setLineTextInfoDict(self,index,charWidthArray,normalLineTextPixmap,lineWidth = None):
-        if index >= len(self.__lineTextInfoDictArray):
+        if self.__indexIsValid(index) == False:
             return False
         self.__lineTextInfoDictArray[index][TextDocument.CHAR_WIDTH_ARRAY] = charWidthArray
         self.__lineTextInfoDictArray[index][TextDocument.NORMAL_LINE_PIXMAP] = normalLineTextPixmap 
@@ -210,26 +257,26 @@ class TextDocument(QtCore.QObject):
     # 以下几个方法的参数outOfIndexValue，是指当传入的index越限时，将会返回的值
     # 获取某行的文本
     def getLineTextByIndex(self,index,outOfIndexValue=None):
-        if index >= len(self.__lineTextInfoDictArray):
-            return outOfIndexValue
+        if self.__indexIsValid(index) == False:
+            return outOfIndexValue 
         return self.__lineTextInfoDictArray[index][TextDocument.LINE_TEXT_STR]
 
     def getCharWidthArrayByIndex(self,index,outOfIndexValue=None):
-        if index >= len(self.__lineTextInfoDictArray):
+        if self.__indexIsValid(index) == False:
             return outOfIndexValue
         if self.__lineTextInfoDictArray[index].get(TextDocument.CHAR_WIDTH_ARRAY) == None:
             self.__refreshLineTextInfoDictByIndex(index)
         return self.__lineTextInfoDictArray[index][TextDocument.CHAR_WIDTH_ARRAY]
 
     def getNormalLineTextPixmapByIndex(self,index,outOfIndexValue=None):
-        if index >= len(self.__lineTextInfoDictArray):
+        if self.__indexIsValid(index) == False:
             return outOfIndexValue
         if self.__lineTextInfoDictArray[index].get(TextDocument.NORMAL_LINE_PIXMAP) == None:
             self.__refreshLineTextInfoDictByIndex(index)
         return self.__lineTextInfoDictArray[index][TextDocument.NORMAL_LINE_PIXMAP]
 
     def getLineTextInfoDictByIndex(self,index,outOfIndexValue=None):
-        if index >= len(self.__lineTextInfoDictArray):
+        if self.__indexIsValid(index) == False:
             return outOfIndexValue
         if self.__lineTextInfoDictArray[index].get(TextDocument.NORMAL_LINE_PIXMAP) == None:
             self.__refreshLineTextInfoDictByIndex(index)
@@ -270,12 +317,31 @@ class TextDocument(QtCore.QObject):
 
 
     def __findCharCorrespondedQPen(self,lineStr):
+        '''
         arr = []
         for c in lineStr:
             if c == '1':
                 arr.append(CEGlobalDefines.LineStrPen)
             else:
                 arr.append(CEGlobalDefines.TextTokenPen)
+        '''
+        
+        arr = [CEGlobalDefines.LineStrPen] * len(lineStr)
+        tokens = ['def','class','del']
+        
+        for t in tokens:
+            pBegin = r'^%s[\W]{1}'
+            pMid = r'[\W]{1}%s[\W]{1}'
+            pEnd = '[\W]{1}%s$'
+            
+            
+            
+            pattern = '^%s[\W]{1}|[\W]{1}%s[\W]{1}|[\W]{1}%s$' % (t,t,t)
+            for mObj in re.finditer(pattern, lineStr):
+                for index in range(mObj.span()[0],mObj.span()[1]):
+                    
+                    arr[index] = CEGlobalDefines.TextTokenPen
+                    
         return arr
 
 

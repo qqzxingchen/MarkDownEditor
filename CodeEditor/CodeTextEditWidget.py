@@ -111,6 +111,7 @@ class CodeTextEditWidget(QWidget):
         self.update()
     
     
+    
     # 当光标的位置改变时，需要刷新原来的行以及新行
     def __onCursorPosChanged(self):
         self.__updateLineIndexRect( self.__cursor.getCursorIndexPos(False)[1],self.getFontMetrics().lineSpacing() )
@@ -150,6 +151,11 @@ class CodeTextEditWidget(QWidget):
         self.setUserDataByKey('leftMousePressed_curCursor',None)
 
     
+
+
+
+
+
 
 
 
@@ -221,21 +227,59 @@ class CodeTextEditWidget(QWidget):
         self.__cursor.setGlobalCursorPos(indexPos)
         self.update()
     
+    def __onPageKey(self,event):
+        if FrequentlyUsedFunc.hasModifier(event.modifiers()) == False:
+            if event.key() == QtCore.Qt.Key_PageUp:
+                newLineNumber = max([ self.getStartDisLineNumber()-self.__calcDisLineNumber(),0 ])
+            elif event.key() == QtCore.Qt.Key_PageDown:
+                newLineNumber = min([ self.getStartDisLineNumber()+self.__calcDisLineNumber(),self.__textDocument.getLineCount()-1 ])
+        else:
+            if FrequentlyUsedFunc.onlyCtrlModifier(event.modifiers()):
+                if event.key() == QtCore.Qt.Key_PageUp:
+                    newLineNumber = 0
+                elif event.key() == QtCore.Qt.Key_PageDown:
+                    newLineNumber = self.__textDocument.getLineCount()-1
+            else:
+                return 
+        
+        curIndexPos = self.__cursor.getCursorIndexPos()
+        newIndexPos = self.__textDocument.formatIndexPos(  (curIndexPos[0],curIndexPos[1] - (self.getStartDisLineNumber() - newLineNumber))  )
+        self.setStartDisLineNumber( newLineNumber )
+        self.__cursor.setGlobalCursorPos( newIndexPos )
+        
+    
     def keyPressEvent(self, event):
         
         # 方向键：上下左右
         if FrequentlyUsedFunc.isEventKeyIsDirectionKey(event.key()):
             self.__onDirectionKey(event)
-                    
+        
+        # BackSpace和Delete键            
         elif FrequentlyUsedFunc.isEventKeyIsDeleteKey(event.key()):
             self.__onDeleteKey(event)
         
+        # 数字键或者字符键
         elif FrequentlyUsedFunc.isEventKeyIsNumber(event.key()) or FrequentlyUsedFunc.isEventKeyIsChar(event.key()):
             self.__onDisableCharKey(event)
-
+        
+        # PageUp、PageDown、Home、End
+        elif FrequentlyUsedFunc.isEventKeyIsPageUpDownKey(event.key()):
+            self.__onPageKey(event)
             
         
-    
+
+
+
+
+
+
+
+
+
+
+
+
+
     
     def insertStr(self,event):
         if len(event.commitString()) == 0:
@@ -298,6 +342,9 @@ class CodeTextEditWidget(QWidget):
 
 
 
+    # 计算一共可以显示多少行
+    def __calcDisLineNumber(self):
+        return int((self.height()-CEGlobalDefines.TextYOff) / self.getFontMetrics().lineSpacing())
 
     # 计算每行文本的y偏移（行号和文本的y偏移都一样）
     def __calcAnyVisibleYOff(self):

@@ -21,8 +21,11 @@ class FrequentlyUsedFunc:
     @staticmethod
     def isEventKeyIsChar(key):
         return (QtCore.Qt.Key_A <= key) and (key <= QtCore.Qt.Key_Z)
-
-
+    
+    @staticmethod
+    def isEventKeyIsPageUpDownKey(key):
+        return [QtCore.Qt.Key_PageUp,QtCore.Qt.Key_PageDown].count(key) != 0
+    
 
 
 
