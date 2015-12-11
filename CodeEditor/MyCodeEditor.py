@@ -99,8 +99,8 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     
     mce = MyCodeEditor()
-    #with codecs.open( '../tmp/temp.txt','r','utf-8' ) as templateFileObj:
-    with codecs.open( 'CodeTextEditWidget.py','r','utf-8' ) as templateFileObj:
+    with codecs.open( '../tmp/temp3.txt','r','utf-8' ) as templateFileObj:
+    #with codecs.open( 'CodeTextEditWidget.py','r','utf-8' ) as templateFileObj:
         fileStr = templateFileObj.read()
         mce.setText(fileStr)
     mce.show()

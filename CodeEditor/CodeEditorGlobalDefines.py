@@ -4,7 +4,7 @@ from PyQt5 import QtGui, QtCore
 
 
 
-class CEGlobalDefines():
+class CEGlobalDefines:
     
     CharDistancePixel = 1       # 同一行相邻两个字符之间的像素间隔
     TextYOff = 4                # 编辑器文本距离上边的距离

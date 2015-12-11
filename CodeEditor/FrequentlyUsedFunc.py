@@ -4,28 +4,33 @@ from CodeEditor.RetuInfo import RetuInfo
 
 
 
+
+
 class FrequentlyUsedFunc:
+    SingleCharKeyRanges = [(0x20,0x2F), \
+                          (0x3A,0x3F), \
+                          (0x40,0x40), \
+                          (0x5B,0x5F), \
+                          (0x60,0x60), \
+                          (0x7B,0x7E)]
+        
+    @staticmethod
+    def isSingleCharKey(key):
+        for keyRange in FrequentlyUsedFunc.SingleCharKeyRanges:
+            if (key >= keyRange[0]) and (key <= keyRange[1]):
+                return True
+        return False
+        
+    isEventKeyIsDirectionKey    = lambda key : [QtCore.Qt.Key_Left,QtCore.Qt.Key_Right,QtCore.Qt.Key_Up,QtCore.Qt.Key_Down].count(key) != 0    
+    isEventKeyIsDeleteKey       = lambda key : [QtCore.Qt.Key_Backspace,QtCore.Qt.Key_Delete].count(key) != 0
+    isEventKeyIsNumber          = lambda key : (QtCore.Qt.Key_0 <= key) and (key <= QtCore.Qt.Key_9)
+    isEventKeyIsChar            = lambda key : (QtCore.Qt.Key_A <= key) and (key <= QtCore.Qt.Key_Z)
+    isEventKeyIsPageUpDownKey   = lambda key : [QtCore.Qt.Key_PageUp,QtCore.Qt.Key_PageDown].count(key) != 0
+    isEventKeyIsHomeEndKey      = lambda key : [QtCore.Qt.Key_Home,QtCore.Qt.Key_End].count(key) != 0
+    isEventKeyIsEnterKey        = lambda key : [QtCore.Qt.Key_Enter,QtCore.Qt.Key_Return].count(key) != 0
+    isEventKeyIsTabKey          = lambda key : QtCore.Qt.Key_Tab == key
+        
 
-    @staticmethod
-    def isEventKeyIsDirectionKey(key):
-        return [QtCore.Qt.Key_Left,QtCore.Qt.Key_Right,QtCore.Qt.Key_Up,QtCore.Qt.Key_Down].count(key) != 0
-    
-    @staticmethod
-    def isEventKeyIsDeleteKey(key):
-        return [QtCore.Qt.Key_Backspace,QtCore.Qt.Key_Delete].count(key) != 0
-
-    @staticmethod
-    def isEventKeyIsNumber(key):
-        return (QtCore.Qt.Key_0 <= key) and (key <= QtCore.Qt.Key_9)
-    
-    @staticmethod
-    def isEventKeyIsChar(key):
-        return (QtCore.Qt.Key_A <= key) and (key <= QtCore.Qt.Key_Z)
-    
-    @staticmethod
-    def isEventKeyIsPageUpDownKey(key):
-        return [QtCore.Qt.Key_PageUp,QtCore.Qt.Key_PageDown].count(key) != 0
-    
 
 
 

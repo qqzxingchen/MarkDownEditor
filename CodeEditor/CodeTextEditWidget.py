@@ -222,10 +222,22 @@ class CodeTextEditWidget(QWidget):
             self.clearSelectText()
         self.update()
     
-    def __onDisableCharKey(self,event):
+    def __onDisplayCharKey(self,event):
         indexPos = self.__textDocument.insertText(self.__cursor.getCursorIndexPos(), event.text())
         self.__cursor.setGlobalCursorPos(indexPos)
         self.update()
+    
+    def __onEnterKey(self,event):
+        indexPos = self.__textDocument.insertText(self.__cursor.getCursorIndexPos(), '\n')
+        self.__cursor.setGlobalCursorPos(indexPos)
+        self.update()
+    
+    def __onTabKey(self,event):
+        insertSpaceLen = 4 - (self.__cursor.getCursorIndexPos()[0] % 4)
+        indexPos = self.__textDocument.insertText(self.__cursor.getCursorIndexPos(), ' '*insertSpaceLen)
+        self.__cursor.setGlobalCursorPos(indexPos)
+        self.update()
+    
     
     def __onPageKey(self,event):
         if FrequentlyUsedFunc.hasModifier(event.modifiers()) == False:
@@ -238,7 +250,7 @@ class CodeTextEditWidget(QWidget):
                 if event.key() == QtCore.Qt.Key_PageUp:
                     newLineNumber = 0
                 elif event.key() == QtCore.Qt.Key_PageDown:
-                    newLineNumber = self.__textDocument.getLineCount()-1
+                    newLineNumber = self.__calcMaxStartDisLineNumber()
             else:
                 return 
         
@@ -246,9 +258,34 @@ class CodeTextEditWidget(QWidget):
         newIndexPos = self.__textDocument.formatIndexPos(  (curIndexPos[0],curIndexPos[1] - (self.getStartDisLineNumber() - newLineNumber))  )
         self.setStartDisLineNumber( newLineNumber )
         self.__cursor.setGlobalCursorPos( newIndexPos )
+    
+    def __onHomeEndKey(self,event):
+        if FrequentlyUsedFunc.hasModifier(event.modifiers()) == False:
+            curIndexPos = self.__cursor.getCursorIndexPos()
+            if event.key() == QtCore.Qt.Key_Home:
+                newIndexPos = ( 0,curIndexPos[1] )
+            else:
+                newIndexPos = ( len(self.__textDocument.getLineTextByIndex(curIndexPos[1])),curIndexPos[1] )
+            self.__cursor.setGlobalCursorPos( newIndexPos )
+        else:
+            if FrequentlyUsedFunc.onlyCtrlModifier(event.modifiers()):
+                if event.key() == QtCore.Qt.Key_Home:
+                    lineIndex = 0
+                    newIndexPos = ( 0,0 )
+                else:
+                    lineIndex = self.__calcMaxStartDisLineNumber()
+                    lineCount = self.__textDocument.getLineCount()-1
+                    newIndexPos = ( len(self.__textDocument.getLineTextByIndex(lineCount)),lineCount )
+                self.__cursor.setGlobalCursorPos( newIndexPos )
+                self.setStartDisLineNumber( lineIndex )
+                
+
         
     
+    
+    
     def keyPressEvent(self, event):
+        #print (hex(event.key()).upper(),',')
         
         # 方向键：上下左右
         if FrequentlyUsedFunc.isEventKeyIsDirectionKey(event.key()):
@@ -257,17 +294,24 @@ class CodeTextEditWidget(QWidget):
         # BackSpace和Delete键            
         elif FrequentlyUsedFunc.isEventKeyIsDeleteKey(event.key()):
             self.__onDeleteKey(event)
-        
+                
         # 数字键或者字符键
-        elif FrequentlyUsedFunc.isEventKeyIsNumber(event.key()) or FrequentlyUsedFunc.isEventKeyIsChar(event.key()):
-            self.__onDisableCharKey(event)
+        elif FrequentlyUsedFunc.isEventKeyIsNumber(event.key()) or \
+                FrequentlyUsedFunc.isEventKeyIsChar(event.key()) or \
+                FrequentlyUsedFunc.isSingleCharKey(event.key()):
+            self.__onDisplayCharKey(event)
+        
+        elif FrequentlyUsedFunc.isEventKeyIsEnterKey(event.key()):
+            self.__onEnterKey(event)
+        elif FrequentlyUsedFunc.isEventKeyIsTabKey(event.key()):
+            self.__onTabKey(event)        
         
         # PageUp、PageDown、Home、End
         elif FrequentlyUsedFunc.isEventKeyIsPageUpDownKey(event.key()):
             self.__onPageKey(event)
             
-        
-
+        elif FrequentlyUsedFunc.isEventKeyIsHomeEndKey(event.key()):
+            self.__onHomeEndKey(event)
 
 
 
@@ -345,6 +389,11 @@ class CodeTextEditWidget(QWidget):
     # 计算一共可以显示多少行
     def __calcDisLineNumber(self):
         return int((self.height()-CEGlobalDefines.TextYOff) / self.getFontMetrics().lineSpacing())
+    
+     
+    def __calcMaxStartDisLineNumber(self):
+        return max([ 0,self.__textDocument.getLineCount()-1-(self.__calcDisLineNumber()-1) ])
+
 
     # 计算每行文本的y偏移（行号和文本的y偏移都一样）
     def __calcAnyVisibleYOff(self):
@@ -471,7 +520,9 @@ class CodeTextEditWidget(QWidget):
         
         # 绘制光标
         cursorPos = self.__transGloPixelPosToCurPixelPos( self.__transGloIndexPosToGloPixelPos(self.__cursor.getCursorIndexPos()) )
-        self.__cursor.setGeometry(cursorPos[0],cursorPos[1],CEGlobalDefines.CursorWidth,self.getFontMetrics().lineSpacing())        
+        self.__cursor.setGeometry(cursorPos[0],cursorPos[1],CEGlobalDefines.CursorWidth,self.getFontMetrics().lineSpacing())
+        self.__cursor.setForceHide( cursorPos[0] < self.getLineTextLeftXOff() )
+
         
         # 绘制光标所在行高亮
         if self.getSelectTextByIndexPos() == None:
@@ -494,7 +545,7 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
 
     mce = CodeTextEditWidget()
-    with codecs.open( '../tmp/temp3.txt','r','utf-8' ) as templateFileObj:
+    with codecs.open( '../tmp/temp2.txt','r','utf-8' ) as templateFileObj:
     #with codecs.open( 'CodeTextEditWidget.py','r','utf-8' ) as templateFileObj:
     
         fileStr = templateFileObj.read()

@@ -317,15 +317,15 @@ class TextDocument(QtCore.QObject):
 
 
     def __findCharCorrespondedQPen(self,lineStr):
-        '''
+        
         arr = []
         for c in lineStr:
             if c == '1':
                 arr.append(CEGlobalDefines.LineStrPen)
             else:
                 arr.append(CEGlobalDefines.TextTokenPen)
+
         '''
-        
         arr = [CEGlobalDefines.LineStrPen] * len(lineStr)
         tokens = ['def','class','del']
         
@@ -341,7 +341,8 @@ class TextDocument(QtCore.QObject):
                 for index in range(mObj.span()[0],mObj.span()[1]):
                     
                     arr[index] = CEGlobalDefines.TextTokenPen
-                    
+        '''
+        
         return arr
 
 

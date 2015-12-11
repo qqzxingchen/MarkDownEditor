@@ -17,6 +17,8 @@ class TextCursor(QtWidgets.QLabel):
     
     
     def isNeedShowCursor(self):
+        if self.__forceHide == True:
+            return False
         return self.__curState == TextCursor.SHOW_CURSOR
 
     
@@ -47,13 +49,25 @@ class TextCursor(QtWidgets.QLabel):
     def getCursorIndexPos(self,isCurrent = True):
         return self.__curIndexPos if isCurrent == True else self.__oldIndexPos
 
+    def setForceHide(self,forceHide = True):
+        self.__forceHide = forceHide
+        self.__refreshDisState()
+    
+    def isForceHide(self):
+        return self.__forceHide
+
+
     def __init__(self, parent = None):
         QtWidgets.QLabel.__init__(self,parent)
         self.setAttribute( QtCore.Qt.WA_InputMethodEnabled,True ) 
         self.setStyleSheet( "background-color:red;" )
-        self.cursorVisibleChangedSignal.connect( self.__onCursorVisibleChanged )
         
         self.__curState = TextCursor.SHOW_CURSOR
+        self.__oldIndexPos = None
+        self.__curIndexPos = None
+        self.__forceHide = False
+        self.cursorVisibleChangedSignal.connect( self.__refreshDisState )
+                
         self.__timer = QtCore.QTimer()
         self.__timer.setSingleShot(False)
         self.__timer.setInterval(TextCursor.SHOW_HIDE_INTERVAL)
@@ -66,7 +80,7 @@ class TextCursor(QtWidgets.QLabel):
         self.__curState = 1 - self.__curState
         self.cursorVisibleChangedSignal.emit()
 
-    def __onCursorVisibleChanged(self):
+    def __refreshDisState(self):
         self.setVisible( True if self.isNeedShowCursor() else False )
 
 
