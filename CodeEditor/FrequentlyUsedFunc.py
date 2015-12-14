@@ -13,7 +13,6 @@ class FrequentlyUsedFunc:
                           (0x5B,0x5F), \
                           (0x60,0x60), \
                           (0x7B,0x7E)]
-        
     @staticmethod
     def isSingleCharKey(key):
         for keyRange in FrequentlyUsedFunc.SingleCharKeyRanges:
@@ -29,10 +28,6 @@ class FrequentlyUsedFunc:
     isEventKeyIsHomeEndKey      = lambda key : [QtCore.Qt.Key_Home,QtCore.Qt.Key_End].count(key) != 0
     isEventKeyIsEnterKey        = lambda key : [QtCore.Qt.Key_Enter,QtCore.Qt.Key_Return].count(key) != 0
     isEventKeyIsTabKey          = lambda key : QtCore.Qt.Key_Tab == key
-        
-
-
-
 
     hasModifier         = lambda modifiers:int(modifiers) != int(QtCore.Qt.NoModifier)
     hasShiftModifier    = lambda modifiers:int(modifiers) &  int(QtCore.Qt.ShiftModifier) != 0
@@ -41,6 +36,12 @@ class FrequentlyUsedFunc:
     onlyShiftModifier   = lambda modifiers:int(modifiers) == int(QtCore.Qt.ShiftModifier)
     onlyCtrlModifier    = lambda modifiers:int(modifiers) == int(QtCore.Qt.ControlModifier)
     onlyAltModifier     = lambda modifiers:int(modifiers) == int(QtCore.Qt.AltModifier)
+
+
+    isChineseChar = lambda c : (ord(c) >= 0x4e00) and (ord(c) <= 0x9fa5)
+    
+
+
     
     @staticmethod
     def isIndexPosEqual(indexPos1,indexPos2):
@@ -78,10 +79,12 @@ class FrequentlyUsedFunc:
         return RetuInfo.info( splitedTexts=splitedTexts,splitedChar=splitedChar )
 
 
-    TotalTime = 0
+
+
 
     # 打印函数执行的时间
     # 用法：@FrequentlyUsedFunc.funcExeTime
+    TotalTime = 0
     @staticmethod
     def funcExeTime(func):
         def newFunc(*args, **args2):  

@@ -4,6 +4,7 @@ from PyQt5 import QtCore,QtGui
 from CodeEditor.CodeEditorGlobalDefines import CEGlobalDefines
 from CodeEditor.FrequentlyUsedFunc import FrequentlyUsedFunc
 
+
 '''
 TextDocument.__lineTextInfoDictArray的注释信息
 一个Array，其中的每项都是一个dict，称为lineTextInfoDict，它的格式是：
@@ -14,10 +15,44 @@ lineTextInfoDict['charWidthArray']               绘制到QPixmap对象上时，
 
 
 class TextDocument(QtCore.QObject):
+    
+    # 注意，使用setText将不会导致该信号的发射
+    __onTextEditedSignal = QtCore.pyqtSignal()
 
     LINE_TEXT_STR = 'lineText'
     CHAR_WIDTH_ARRAY = 'charWidthArray'
     NORMAL_LINE_PIXMAP = 'normalLineTextPixmap'
+
+    
+    UnvisibleCharSearcher = re.compile('[\s]{1,}')
+    WordSearcher = re.compile('[0-9a-zA-Z]{1,}')
+    ChineseSearcher = re.compile(u'[\u4e00-\u9fa5]+')
+    Searchers = [UnvisibleCharSearcher,WordSearcher,ChineseSearcher]
+
+    # 设当前行内容为lineText，当前光标的xIndexPos为curIndex（表示光标位置向左查，有curIndex个字符）
+    # 该函数将会返回一个int值，该值为光标新位置距离旧位置的偏移。该位置恒为正
+    # 光标的新位置为 光标向右移动一个“单词”之后的光标位置（skipSpaceAndWordByLeft表示向左移动一个单词之后的光标位置）
+    #     单词的定义：连续的不可见字符（正则匹配中的\s）、连续的中文字符、连续的字母数字组合（[0-9a-zA-Z]）
+    @staticmethod
+    def skipSpaceAndWordByRight(lineText,curIndex):
+        rightText = lineText[curIndex:]
+        for searcher in TextDocument.Searchers:
+            matchObj = searcher.match(rightText)
+            if matchObj != None:
+                return matchObj.span()[1] - matchObj.span()[0]
+        return 1
+
+    @staticmethod
+    def skipSpaceAndWordByLeft(lineText,curIndex):
+        l = list(lineText)
+        l.reverse()
+        return TextDocument.skipSpaceAndWordByRight( ''.join(l) , len(lineText)-curIndex)
+
+
+
+
+
+
 
     def __init__(self,font=QtGui.QFont('Consolas',11) ,parent=None):
         QtCore.QObject.__init__(self,parent)
@@ -48,10 +83,12 @@ class TextDocument(QtCore.QObject):
         if fontMetrics == None:
             fontMetrics = QtGui.QFontMetrics(self.__font)
         self.__fontMetrics = fontMetrics
+        self.__chineseCharFont = QtGui.QFont(self.__font)
+        self.__chineseCharFont.setPointSize( self.__chineseCharFont.pointSize()-2 )
         
         self.__lineMaxWidth = 0
-        for index in range(len(self.__lineTextInfoDictArray)):
-            self.__lineTextInfoDictArray[index] = {TextDocument.LINE_TEXT_STR:self.__lineTextInfoDictArray[index][TextDocument.LINE_TEXT_STR]}
+        for index in range(self.getLineCount()):
+            self.clearLineTextInfoDict(index)
         
     def getFont(self):
         return self.__font
@@ -76,23 +113,25 @@ class TextDocument(QtCore.QObject):
         for index in range(len( splitedTexts )-1):
             indexPos = self.__insertTextWithoutLineBreak( indexPos , splitedTexts[index])
             indexPos = self.__insertLineBreak( indexPos )
-        return self.__insertTextWithoutLineBreak( indexPos , splitedTexts[-1])
-
+        indexPos = self.__insertTextWithoutLineBreak( indexPos , splitedTexts[-1])
+        self.__onTextEditedSignal.emit()
+        return indexPos
+        
     # 插入一个换行符
     def __insertLineBreak(self,xyIndexPosTuple):
         xPos = xyIndexPosTuple[0]
         yPos = xyIndexPosTuple[1]
-        curLineText = self.__lineTextInfoDictArray[yPos][TextDocument.LINE_TEXT_STR]
-        self.__lineTextInfoDictArray[yPos] = {TextDocument.LINE_TEXT_STR:curLineText[0:xPos]}
-        self.__lineTextInfoDictArray.insert( yPos + 1 , {TextDocument.LINE_TEXT_STR:curLineText[xPos:len(curLineText)]})
+        curLineText = self.getLineTextByIndex(yPos)
+        self.changeLineText(yPos,curLineText[0:xPos] )
+        self.addLine( yPos + 1,curLineText[xPos:len(curLineText)] )
         return (0,yPos+1)
         
     # 插入一段没有换行符的文本
     def __insertTextWithoutLineBreak(self,xyIndexPosTuple,text):        
         xPos = xyIndexPosTuple[0]
         yPos = xyIndexPosTuple[1]
-        curLineText = self.__lineTextInfoDictArray[yPos][TextDocument.LINE_TEXT_STR]
-        self.__lineTextInfoDictArray[yPos] = {TextDocument.LINE_TEXT_STR:curLineText[0:xPos] + text + curLineText[xPos:len(curLineText)]}
+        curLineText = self.getLineTextByIndex(yPos)
+        self.changeLineText(yPos, curLineText[0:xPos] + text + curLineText[xPos:len(curLineText)])
         return ( len(curLineText[0:xPos] + text) ,yPos)
         
     # 从xyPos的位置起向右删掉length长度的字符
@@ -104,22 +143,33 @@ class TextDocument(QtCore.QObject):
             self.__deleteLineBreak(yPos)
             length -= 1
             
-        curLineText = self.__lineTextInfoDictArray[yPos][TextDocument.LINE_TEXT_STR]
-        self.__lineTextInfoDictArray[yPos] = {TextDocument.LINE_TEXT_STR:curLineText[0:xPos]+curLineText[xPos+length:len(curLineText)]}
+        curLineText = self.getLineTextByIndex(yPos)
+        self.changeLineText( yPos,curLineText[0:xPos]+curLineText[xPos+length:len(curLineText)] )
         
-    def deleteOneLine(self,yIndexPos):
-        self.__lineTextInfoDictArray.remove( self.__lineTextInfoDictArray[yIndexPos] )
+        self.__onTextEditedSignal.emit()
+        return xyIndexPosTuple
+
+        
+    def deleteOneLine(self,xyIndexPosTuple):
+        self.delLine(xyIndexPosTuple[1])
+        if self.isIndexPosValid(xyIndexPosTuple) == False:
+            l = self.getLineCount()-1
+            xyIndexPosTuple = ( len(self.getLineTextByIndex(l)),l )
+            
+        self.__onTextEditedSignal.emit()
+        return xyIndexPosTuple
+
 
 
     # 删掉第lineIndex行的行尾换行符，其实质是将第lineIndex和第lineIndex+1行的文本合并为一行
     # 如果不存在第lineIndex+1行，则什么都不做
     def __deleteLineBreak(self,lineIndex):
-        if lineIndex+1 >= len(self.__lineTextInfoDictArray):
-            return 
+        if self.isLineIndexValid(lineIndex) == False:
+            return False
         text1 = self.getLineTextByIndex(lineIndex)
-        text2 = self.getLineTextByIndex(lineIndex+1)
-        self.__lineTextInfoDictArray[lineIndex] = {TextDocument.LINE_TEXT_STR:text1+text2}
-        self.__lineTextInfoDictArray.remove( self.__lineTextInfoDictArray[lineIndex+1] )
+        text2 = self.getLineTextByIndex(lineIndex+1,'')
+        self.changeLineText(lineIndex, text1+text2)
+        self.delLine(lineIndex+1)
     
     
     
@@ -165,6 +215,7 @@ class TextDocument(QtCore.QObject):
     def formatIndexPos(self,xyIndexPosTuple):
         xPos = xyIndexPosTuple[0]
         yPos = xyIndexPosTuple[1]
+
         lineText = self.getLineTextByIndex(yPos)
         if lineText == None:
             if yPos < 0:
@@ -188,8 +239,8 @@ class TextDocument(QtCore.QObject):
     
     
     
-    
-    def moveLeftIndexPos(self,xyIndexPosTuple):
+    # 左移一个位置
+    def moveIndexPosLeft(self,xyIndexPosTuple):
         xPos = xyIndexPosTuple[0]
         yPos = xyIndexPosTuple[1]
 
@@ -202,20 +253,49 @@ class TextDocument(QtCore.QObject):
                 yPos -= 1
                 xPos = len(self.getLineTextByIndex(yPos))
         return (xPos,yPos)
-
-    def moveRightIndexPos(self,xyIndexPosTuple):
+    
+    # 右移一个位置
+    def moveIndexPosRight(self,xyIndexPosTuple):
         xPos = xyIndexPosTuple[0]
         yPos = xyIndexPosTuple[1]
 
         xPos += 1
         if xPos > len(self.getLineTextByIndex(yPos)):
-            xPos = 0
-            yPos += 1
-            if yPos >= self.getLineCount()-1:
-                yPos = self.getLineCount()-1
+            if yPos < self.getLineCount()-1:
+                xPos = 0
+                yPos += 1
+            else:
+                xPos = len(self.getLineTextByIndex(yPos))
         return (xPos,yPos)
+    
+    
+    # 左移一个单词
+    def moveIndexPosLeftByWord(self,xyIndexPosTuple):
+        xPos = xyIndexPosTuple[0]
+        yPos = xyIndexPosTuple[1]
+        
+        off = TextDocument.skipSpaceAndWordByLeft( self.getLineTextByIndex(yPos),xPos )
+        pos = xyIndexPosTuple
+        for i in range(off):
+            pos = self.moveIndexPosLeft(pos)
+        return pos
+    
+    # 右移一个单词
+    def moveIndexPosRightByWord(self,xyIndexPosTuple):
+        xPos = xyIndexPosTuple[0]
+        yPos = xyIndexPosTuple[1]
+        
+        off = TextDocument.skipSpaceAndWordByRight( self.getLineTextByIndex(yPos),xPos )
+        pos = xyIndexPosTuple
+        for i in range(off):
+            pos = self.moveIndexPosRight(pos)
+        return pos
 
-    def moveUpIndexPos(self,xyIndexPosTuple):
+
+
+
+    # 上移一个位置
+    def moveIndexPosUp(self,xyIndexPosTuple):
         xPos = xyIndexPosTuple[0]
         yPos = xyIndexPosTuple[1]
         
@@ -223,8 +303,9 @@ class TextDocument(QtCore.QObject):
             yPos -= 1
             xPos = min([ len(self.getLineTextByIndex(yPos)),xPos ])
         return (xPos,yPos)
-        
-    def moveDownIndexPos(self,xyIndexPosTuple):
+    
+    # 下移一个位置
+    def moveIndexPosDown(self,xyIndexPosTuple):
         xPos = xyIndexPosTuple[0]
         yPos = xyIndexPosTuple[1]
         
@@ -239,14 +320,41 @@ class TextDocument(QtCore.QObject):
         
         
 
-    def __indexIsValid(self,index):
+    def isLineIndexValid(self,index):
         if (index < 0) or (index >= len(self.__lineTextInfoDictArray)):
             return False
         else:
             return True
     
+    def changeLineText(self,lineIndex,newText):
+        if self.isLineIndexValid(lineIndex) == False:
+            return False
+        self.__lineTextInfoDictArray[lineIndex] = {TextDocument.LINE_TEXT_STR:newText}
+        return True
+        
+    def delLine(self,lineIndex):
+        if self.isLineIndexValid(lineIndex) == False:
+            return False
+        self.__lineTextInfoDictArray.remove( self.__lineTextInfoDictArray[lineIndex] )
+        if len(self.__lineTextInfoDictArray) == 0:
+            self.__lineTextInfoDictArray.append( {TextDocument.LINE_TEXT_STR:''} )
+        return True
+    
+    # 文本将会把newText插入到lineIndex之前，使newText称为新的第lineIndex号元素
+    def addLine(self,lineIndex,newText):
+        if lineIndex < 0:
+            return False
+        self.__lineTextInfoDictArray.insert(lineIndex, {TextDocument.LINE_TEXT_STR:newText})
+        return True
+    
+    def clearLineTextInfoDict(self,index):
+        if self.isLineIndexValid(index) == False:
+            return False
+        self.__lineTextInfoDictArray[index] = {TextDocument.LINE_TEXT_STR:self.__lineTextInfoDictArray[index][TextDocument.LINE_TEXT_STR]}
+        return True
+    
     def setLineTextInfoDict(self,index,charWidthArray,normalLineTextPixmap,lineWidth = None):
-        if self.__indexIsValid(index) == False:
+        if self.isLineIndexValid(index) == False:
             return False
         self.__lineTextInfoDictArray[index][TextDocument.CHAR_WIDTH_ARRAY] = charWidthArray
         self.__lineTextInfoDictArray[index][TextDocument.NORMAL_LINE_PIXMAP] = normalLineTextPixmap 
@@ -257,26 +365,26 @@ class TextDocument(QtCore.QObject):
     # 以下几个方法的参数outOfIndexValue，是指当传入的index越限时，将会返回的值
     # 获取某行的文本
     def getLineTextByIndex(self,index,outOfIndexValue=None):
-        if self.__indexIsValid(index) == False:
+        if self.isLineIndexValid(index) == False:
             return outOfIndexValue 
         return self.__lineTextInfoDictArray[index][TextDocument.LINE_TEXT_STR]
 
     def getCharWidthArrayByIndex(self,index,outOfIndexValue=None):
-        if self.__indexIsValid(index) == False:
+        if self.isLineIndexValid(index) == False:
             return outOfIndexValue
         if self.__lineTextInfoDictArray[index].get(TextDocument.CHAR_WIDTH_ARRAY) == None:
             self.__refreshLineTextInfoDictByIndex(index)
         return self.__lineTextInfoDictArray[index][TextDocument.CHAR_WIDTH_ARRAY]
 
     def getNormalLineTextPixmapByIndex(self,index,outOfIndexValue=None):
-        if self.__indexIsValid(index) == False:
+        if self.isLineIndexValid(index) == False:
             return outOfIndexValue
         if self.__lineTextInfoDictArray[index].get(TextDocument.NORMAL_LINE_PIXMAP) == None:
             self.__refreshLineTextInfoDictByIndex(index)
         return self.__lineTextInfoDictArray[index][TextDocument.NORMAL_LINE_PIXMAP]
 
     def getLineTextInfoDictByIndex(self,index,outOfIndexValue=None):
-        if self.__indexIsValid(index) == False:
+        if self.isLineIndexValid(index) == False:
             return outOfIndexValue
         if self.__lineTextInfoDictArray[index].get(TextDocument.NORMAL_LINE_PIXMAP) == None:
             self.__refreshLineTextInfoDictByIndex(index)
@@ -287,26 +395,27 @@ class TextDocument(QtCore.QObject):
 
 
     # 根据当前最新的文本，来重绘文本信息Dict
+    @FrequentlyUsedFunc.funcExeTime
     def __refreshLineTextInfoDictByIndex(self,index):
+        lineHeight = self.__fontMetrics.lineSpacing()        
         curLineText = self.getLineTextByIndex(index)
-        charCorrespondedQPenArr = self.__findCharCorrespondedQPen(curLineText)
-        
-        maxPixelLength = len(curLineText)*( CEGlobalDefines.CharDistancePixel + self.__fontMetrics.maxWidth() * 2 )
-        pixmapObj = QtGui.QPixmap(maxPixelLength,self.__fontMetrics.lineSpacing())
+        charMatchedSettings = self.__findCharMatchedSettings(curLineText,index)
+
+        pixmapObj = QtGui.QPixmap(len(curLineText)*( CEGlobalDefines.CharDistancePixel + self.__fontMetrics.maxWidth() * 2 ),lineHeight)
         pixmapObj.fill(QtGui.QColor(255,255,255,0))
         painter = QtGui.QPainter(pixmapObj)
-        painter.setFont(self.__font)
-            
+        
         curXOff = 0
         charWidthInfoArr = []
         letterRect = QtCore.QRect(0,0,0,0)
         for i in range(len(curLineText)):
-            if charCorrespondedQPenArr[i] != painter.pen():
-                painter.setPen(charCorrespondedQPenArr[i])            
-            curChar = curLineText[i]
+            painter = self.__changePainter(painter, charMatchedSettings[i])
             curXOff += CEGlobalDefines.CharDistancePixel
-            letterRect = painter.boundingRect(curXOff,0,0,0,0,curChar)
-            painter.drawText(letterRect,0,curChar)
+            letterRect = painter.boundingRect(curXOff,0,0,0,0,curLineText[i])
+            yOff = (lineHeight-letterRect.height())/2
+            letterRect = QtCore.QRect( letterRect.x(),yOff,letterRect.width(),lineHeight-yOff )
+            painter.drawText(letterRect,0,curLineText[i])
+            
             curXOff += letterRect.width()
             charWidthInfoArr.append( letterRect.width() )
         del painter   # 删除当前的painter，才能继续为pixmap创建新的画笔并绘制
@@ -315,15 +424,25 @@ class TextDocument(QtCore.QObject):
         self.setLineTextInfoDict(index, charWidthInfoArr, pixmapObj,curXOff - letterRect.width())
 
 
+    # 根据matchedPenAndInfo中的信息，更新painter的QFont和QPen
+    # matchedPenAndInfo的格式与
+    def __changePainter(self,painter,matchedPenAndInfo):
+        if matchedPenAndInfo[0] != painter.pen():
+            painter.setPen(matchedPenAndInfo[0])
+        if matchedPenAndInfo[1] != painter.font():
+            painter.setFont(matchedPenAndInfo[1])
+        return painter
 
-    def __findCharCorrespondedQPen(self,lineStr):
-        
+    def __findCharMatchedSettings(self,lineStr,lineIndex):
         arr = []
         for c in lineStr:
-            if c == '1':
-                arr.append(CEGlobalDefines.LineStrPen)
+            if FrequentlyUsedFunc.isChineseChar(c):
+                arr.append( (CEGlobalDefines.ExplainNotePen,self.__chineseCharFont) )
             else:
-                arr.append(CEGlobalDefines.TextTokenPen)
+                arr.append( (CEGlobalDefines.LineTextPen,self.__font) )
+
+
+
 
         '''
         arr = [CEGlobalDefines.LineStrPen] * len(lineStr)

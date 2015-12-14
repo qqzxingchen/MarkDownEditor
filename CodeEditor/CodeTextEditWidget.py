@@ -10,6 +10,7 @@ from CodeEditor.TextCursor import TextCursor
 from CodeEditor.CodeEditorGlobalDefines import CEGlobalDefines
 from CodeEditor.FrequentlyUsedFunc import FrequentlyUsedFunc
 from CodeEditor.EditorSettings import EditorSettings
+from CodeEditor.RetuInfo import RetuInfo
 
 
 
@@ -18,6 +19,12 @@ from CodeEditor.EditorSettings import EditorSettings
 class CodeTextEditWidget(QWidget):
     # 当文本内容发生改变时，该信号将会被发射
     textChangedSignal = QtCore.pyqtSignal( TextDocument)
+    
+    # 当按下Ctrl+字母键时，onQuickCtrlKey被发射
+    # 当按下Alt+字母键时，onQuickAltKey被发射
+    onQuickCtrlKey = QtCore.pyqtSignal( QtCore.Qt.Key )
+    onQuickAltKey = QtCore.pyqtSignal( QtCore.Qt.Key )
+
 
 
     def setText(self,text):
@@ -25,6 +32,7 @@ class CodeTextEditWidget(QWidget):
         self.textChangedSignal.emit(self.__textDocument)
     def getText(self):
         return self.__textDocument.getText()
+
 
 
     def showLineNumberAsTop(self,lineNumber,update=True):
@@ -43,7 +51,7 @@ class CodeTextEditWidget(QWidget):
     
     
     # 将本次选中的文本与上次选中的文本进行合并
-    def setSelectTextByIndexPos(self,startIndexPosTuple,endIndexPosTuple):
+    def setSelectTextByIndexPos(self,startIndexPosTuple,endIndexPosTuple,update = True):
         if self.selectedTextIndexPos != None:
             if FrequentlyUsedFunc.isIndexPosEqual( startIndexPosTuple,self.selectedTextIndexPos[0] ) and \
                 FrequentlyUsedFunc.isIndexPosEqual( endIndexPosTuple,self.selectedTextIndexPos[1] ):
@@ -52,9 +60,10 @@ class CodeTextEditWidget(QWidget):
             self.selectedTextIndexPos = None
         else:
             self.selectedTextIndexPos = (startIndexPosTuple,endIndexPosTuple)
-        self.update()
+        if update == True:
+            self.update()
         
-    def addSelectTextByIndexPos(self,startIndexPosTuple,endIndexPosTuple):
+    def addSelectTextByIndexPos(self,startIndexPosTuple,endIndexPosTuple,update = True):
         if self.selectedTextIndexPos == None:
             self.selectedTextIndexPos = (startIndexPosTuple,endIndexPosTuple)
         else:
@@ -64,13 +73,24 @@ class CodeTextEditWidget(QWidget):
                 self.selectedTextIndexPos = ( endIndexPosTuple,self.selectedTextIndexPos[1] )
         if FrequentlyUsedFunc.isIndexPosEqual(self.selectedTextIndexPos[0],self.selectedTextIndexPos[1]):
             self.selectedTextIndexPos = None
-        self.update()
+        if update == True:
+            self.update()
     def getSelectTextByIndexPos(self):
         return self.selectedTextIndexPos
-    def clearSelectText(self):
+    def clearSelectText(self,update = True):
         if self.selectedTextIndexPos != None:
             self.selectedTextIndexPos = None
-            self.update()
+            if update == True:
+                self.update()
+    def deleteSelectText(self,update = True):
+        if self.selectedTextIndexPos != None:
+            selectedStart = self.getSelectTextByIndexPos()[0]
+            selectedEnd = self.getSelectTextByIndexPos()[1]
+            sortedInfoDict = FrequentlyUsedFunc.sortedIndexPos( selectedStart , selectedEnd )
+            self.__cursor.setGlobalCursorPos( sortedInfoDict['first'])
+            value = self.__textDocument.calcIndexPosDistance(selectedStart,selectedEnd)            
+            self.__textDocument.deleteText(self.__cursor.getCursorIndexPos(), value)
+            self.clearSelectText(update)
     
 
     
@@ -81,8 +101,8 @@ class CodeTextEditWidget(QWidget):
         
 
     def __initData(self):
-        self.__settings = EditorSettings()
         # 为了代码的可读性，将部分属性值放置到EditorSettings类中。然后将类的方法定向到本类中
+        self.__settings = EditorSettings()
         for funcName in EditorSettings.getFuncNames + EditorSettings.setFuncNames + EditorSettings.signalNames:
             setattr(self, funcName, getattr(self.__settings, funcName) )
     
@@ -114,8 +134,28 @@ class CodeTextEditWidget(QWidget):
     
     # 当光标的位置改变时，需要刷新原来的行以及新行
     def __onCursorPosChanged(self):
-        self.__updateLineIndexRect( self.__cursor.getCursorIndexPos(False)[1],self.getFontMetrics().lineSpacing() )
-        self.__updateLineIndexRect( self.__cursor.getCursorIndexPos()[1],self.getFontMetrics().lineSpacing() )
+        curCursorPos = self.__cursor.getCursorIndexPos()
+        
+        curXPixel = self.__transGloPixelPosToCurPixelPos( self.__transGloIndexPosToGloPixelPos( curCursorPos ) )[0]
+        if curXPixel < self.getLineTextLeftXOff():
+            moveDistance = self.getLineTextLeftXOff() - curXPixel
+            moveDistance = (int(moveDistance / 100) + 1) * 100
+            self.showLeftXOffAsLeft(self.getStartDisLetterXOff()-moveDistance,False)
+        elif curXPixel+CEGlobalDefines.CursorWidth > self.width():
+            moveDistance = curXPixel-self.width()
+            moveDistance = (int(moveDistance / 100) + 1) * 100
+            self.showLeftXOffAsLeft(self.getStartDisLetterXOff()+moveDistance, False)
+        
+        
+        curYIndex = curCursorPos[1]
+        if ( curYIndex < self.getStartDisLineNumber() ):
+            self.showLineNumberAsTop(curYIndex)
+        elif ( curYIndex >= self.getStartDisLineNumber() + self.__calcDisLineNumber() ):
+            self.showLineNumberAsTop(curYIndex - (self.__calcDisLineNumber()-1))
+        else:
+            self.__updateLineIndexRect( self.__cursor.getCursorIndexPos(False)[1],self.getFontMetrics().lineSpacing() )
+            self.__updateLineIndexRect( curYIndex,self.getFontMetrics().lineSpacing() )
+                    
 
     # 以当前的设置为准，更新第lineIndex对应的矩形区域
     def __updateLineIndexRect(self,lineIndex,height):
@@ -163,63 +203,57 @@ class CodeTextEditWidget(QWidget):
         key = event.key()
         modifiers = event.modifiers()
         
-        # 只按下方向键、或者同时只按下shift键时
-        if ( FrequentlyUsedFunc.hasModifier(modifiers) == False ) or ( FrequentlyUsedFunc.onlyShiftModifier(modifiers) ):
-            arr = [{'index':QtCore.Qt.Key_Left ,'func':self.__textDocument.moveLeftIndexPos},
-                   {'index':QtCore.Qt.Key_Right,'func':self.__textDocument.moveRightIndexPos},
-                   {'index':QtCore.Qt.Key_Up   ,'func':self.__textDocument.moveUpIndexPos},
-                   {'index':QtCore.Qt.Key_Down ,'func':self.__textDocument.moveDownIndexPos}]
-            for item in arr:
-                if item['index'] == key:
-                    oldCursorIndexPos = self.__cursor.getCursorIndexPos()
-                    newCursorIndexPos = item['func'](oldCursorIndexPos)
-                    self.__cursor.setGlobalCursorPos(newCursorIndexPos)
-                    
-                    if FrequentlyUsedFunc.onlyShiftModifier(modifiers):
-                        self.addSelectTextByIndexPos( oldCursorIndexPos,newCursorIndexPos )
-                    else:
-                        self.clearSelectText()
-                    break
+        oldCursorIndexPos = self.__cursor.getCursorIndexPos()
+        if ( FrequentlyUsedFunc.hasModifier(modifiers) == False ) or ( FrequentlyUsedFunc.hasCtrlModifier(modifiers) == False ):
+            dictMap = { str(QtCore.Qt.Key_Left) :self.__textDocument.moveIndexPosLeft   , \
+                        str(QtCore.Qt.Key_Right):self.__textDocument.moveIndexPosRight  , \
+                        str(QtCore.Qt.Key_Up)   :self.__textDocument.moveIndexPosUp     , \
+                        str(QtCore.Qt.Key_Down) :self.__textDocument.moveIndexPosDown  }
+            newCursorIndexPos = dictMap[str(key)](oldCursorIndexPos)
 
-        
-        # 除了方向键，同时只按下Ctrl键时
-        elif FrequentlyUsedFunc.onlyCtrlModifier( modifiers ):
-            if key == QtCore.Qt.Key_Left:
-                newXOff = max([ self.getStartDisLetterXOff()-10,0 ])
-                self.showLeftXOffAsLeft(newXOff)
-            elif key == QtCore.Qt.Key_Right:
-                newXOff = min([ self.getStartDisLetterXOff()+10,self.__textDocument.getMaxLineWidth() ])
-                self.showLeftXOffAsLeft(newXOff)
-            elif key == QtCore.Qt.Key_Up:
-                newYIndex = max([ self.getStartDisLineNumber()-1,0 ])
-                self.showLineNumberAsTop(newYIndex)
+        elif FrequentlyUsedFunc.hasCtrlModifier(modifiers):
+            if key == QtCore.Qt.Key_Up:
+                self.showLineNumberAsTop(self.getStartDisLineNumber()-1)
+                return 
             elif key == QtCore.Qt.Key_Down:
-                newYIndex = min([ self.getStartDisLineNumber()+1,self.__textDocument.getLineCount() ])
-                self.showLineNumberAsTop(newYIndex)       
-            return 
+                self.showLineNumberAsTop(self.getStartDisLineNumber()+1)
+                return 
+            
+            if key == QtCore.Qt.Key_Left:
+                newCursorIndexPos = self.__textDocument.moveIndexPosLeftByWord(oldCursorIndexPos)
+            elif key == QtCore.Qt.Key_Right:
+                newCursorIndexPos = self.__textDocument.moveIndexPosRightByWord(oldCursorIndexPos)
+        
+        
+        self.__cursor.setGlobalCursorPos(newCursorIndexPos)
+        if FrequentlyUsedFunc.hasShiftModifier(event.modifiers()) == True:
+            self.addSelectTextByIndexPos(oldCursorIndexPos, newCursorIndexPos)
+        else:
+            self.clearSelectText()
+        self.update()
+        
+        
     
     def __onDeleteKey(self,event):
         key = event.key()
         modifiers = event.modifiers()
 
-        if self.getSelectTextByIndexPos() == None:
+        if self.getSelectTextByIndexPos() != None:
+            self.deleteSelectText(False)
+        else:
             if FrequentlyUsedFunc.hasModifier(modifiers) == False:
                 if key == QtCore.Qt.Key_Delete:
                     self.__textDocument.deleteText(self.__cursor.getCursorIndexPos(),1 )
-                elif key == QtCore.Qt.Key_Backspace:                    
-                    newCursorIndexPos = self.__textDocument.moveLeftIndexPos( self.__cursor.getCursorIndexPos() )
-                    self.__cursor.setGlobalCursorPos(newCursorIndexPos)
-                    self.__textDocument.deleteText(newCursorIndexPos,1 )
+                elif key == QtCore.Qt.Key_Backspace:
+                    curCursorIndexPos = self.__cursor.getCursorIndexPos()
+                    newCursorIndexPos = self.__textDocument.moveIndexPosLeft( curCursorIndexPos )
+                    if FrequentlyUsedFunc.isIndexPosEqual(newCursorIndexPos, curCursorIndexPos) == False:
+                        self.__cursor.setGlobalCursorPos(newCursorIndexPos)
+                        self.__textDocument.deleteText(newCursorIndexPos,1 )
             elif FrequentlyUsedFunc.onlyCtrlModifier(modifiers):
-                self.__textDocument.deleteOneLine( self.__cursor.getCursorIndexPos()[1] )
-        else:
-            selectedStart = self.getSelectTextByIndexPos()[0]
-            selectedEnd = self.getSelectTextByIndexPos()[1]
-            sortedInfoDict = FrequentlyUsedFunc.sortedIndexPos( selectedStart , selectedEnd )
-            self.__cursor.setGlobalCursorPos( sortedInfoDict['first'])
-            value = self.__textDocument.calcIndexPosDistance(selectedStart,selectedEnd)            
-            self.__textDocument.deleteText(self.__cursor.getCursorIndexPos(), value)
-            self.clearSelectText()
+                newCursorIndexPos = self.__textDocument.deleteOneLine( self.__cursor.getCursorIndexPos() )
+                self.__cursor.setGlobalCursorPos(newCursorIndexPos)
+                
         self.update()
     
     def __onDisplayCharKey(self,event):
@@ -227,12 +261,34 @@ class CodeTextEditWidget(QWidget):
         self.__cursor.setGlobalCursorPos(indexPos)
         self.update()
     
+    def __onDisplayLetterKey(self,event):
+        if (FrequentlyUsedFunc.hasModifier(event.modifiers()) == False) or (FrequentlyUsedFunc.onlyShiftModifier(event.modifiers()) == True):        
+            indexPos = self.__textDocument.insertText(self.__cursor.getCursorIndexPos(), event.text())
+            self.__cursor.setGlobalCursorPos(indexPos)
+            self.update()
+        elif FrequentlyUsedFunc.onlyCtrlModifier(event.modifiers()):
+            self.onQuickCtrlKey.emit(event.key())
+        elif FrequentlyUsedFunc.onlyAltModifier(event.modifiers()):
+            self.onQuickAltKey.emit(event.key())
+        
+    
     def __onEnterKey(self,event):
-        indexPos = self.__textDocument.insertText(self.__cursor.getCursorIndexPos(), '\n')
+        self.deleteSelectText(False)
+        
+        curCursorPos = self.__cursor.getCursorIndexPos()
+        cursorLeftText = self.__textDocument.getLineTextByIndex(curCursorPos[1])[0:curCursorPos[0]]
+                
+        unvisibleSearcher = TextDocument.UnvisibleCharSearcher
+        matchObj = unvisibleSearcher.match(cursorLeftText)
+        spaceNumber = matchObj.span()[1] - matchObj.span()[0] if matchObj != None else 0
+        
+        indexPos = self.__textDocument.insertText(self.__cursor.getCursorIndexPos(), '\n' + ' '*spaceNumber )
         self.__cursor.setGlobalCursorPos(indexPos)
         self.update()
     
     def __onTabKey(self,event):
+        self.deleteSelectText(False)        
+        
         insertSpaceLen = 4 - (self.__cursor.getCursorIndexPos()[0] % 4)
         indexPos = self.__textDocument.insertText(self.__cursor.getCursorIndexPos(), ' '*insertSpaceLen)
         self.__cursor.setGlobalCursorPos(indexPos)
@@ -256,7 +312,7 @@ class CodeTextEditWidget(QWidget):
         
         curIndexPos = self.__cursor.getCursorIndexPos()
         newIndexPos = self.__textDocument.formatIndexPos(  (curIndexPos[0],curIndexPos[1] - (self.getStartDisLineNumber() - newLineNumber))  )
-        self.setStartDisLineNumber( newLineNumber )
+        self.showLineNumberAsTop( newLineNumber )
         self.__cursor.setGlobalCursorPos( newIndexPos )
     
     def __onHomeEndKey(self,event):
@@ -277,7 +333,7 @@ class CodeTextEditWidget(QWidget):
                     lineCount = self.__textDocument.getLineCount()-1
                     newIndexPos = ( len(self.__textDocument.getLineTextByIndex(lineCount)),lineCount )
                 self.__cursor.setGlobalCursorPos( newIndexPos )
-                self.setStartDisLineNumber( lineIndex )
+                self.showLineNumberAsTop(lineIndex)
                 
 
         
@@ -285,26 +341,29 @@ class CodeTextEditWidget(QWidget):
     
     
     def keyPressEvent(self, event):
-        #print (hex(event.key()).upper(),',')
+        #print (hex(event.key()).upper(), hex(ord(event.text()))   )
         
-        # 方向键：上下左右
         if FrequentlyUsedFunc.isEventKeyIsDirectionKey(event.key()):
             self.__onDirectionKey(event)
         
         # BackSpace和Delete键            
         elif FrequentlyUsedFunc.isEventKeyIsDeleteKey(event.key()):
             self.__onDeleteKey(event)
-                
-        # 数字键或者字符键
-        elif FrequentlyUsedFunc.isEventKeyIsNumber(event.key()) or \
-                FrequentlyUsedFunc.isEventKeyIsChar(event.key()) or \
-                FrequentlyUsedFunc.isSingleCharKey(event.key()):
-            self.__onDisplayCharKey(event)
         
+        # enter键
         elif FrequentlyUsedFunc.isEventKeyIsEnterKey(event.key()):
             self.__onEnterKey(event)
+            
+        # tab键
         elif FrequentlyUsedFunc.isEventKeyIsTabKey(event.key()):
-            self.__onTabKey(event)        
+            self.__onTabKey(event)
+                
+        # 数字键、其它可见字符
+        elif FrequentlyUsedFunc.isEventKeyIsNumber(event.key()) or FrequentlyUsedFunc.isSingleCharKey(event.key()):
+            self.__onDisplayCharKey(event)
+        # 字母
+        elif FrequentlyUsedFunc.isEventKeyIsChar(event.key()):
+            self.__onDisplayLetterKey(event)
         
         # PageUp、PageDown、Home、End
         elif FrequentlyUsedFunc.isEventKeyIsPageUpDownKey(event.key()):
@@ -383,6 +442,7 @@ class CodeTextEditWidget(QWidget):
                 startX -= (charWidth + CEGlobalDefines.CharDistancePixel)
                 xIndex -= 1
         return ( xIndex,lineIndex )
+        #return RetuInfo.info( indexPos = ( xIndex,lineIndex ) , isOnTheLeftOfIndexPos =  )
 
 
 
@@ -390,7 +450,6 @@ class CodeTextEditWidget(QWidget):
     def __calcDisLineNumber(self):
         return int((self.height()-CEGlobalDefines.TextYOff) / self.getFontMetrics().lineSpacing())
     
-     
     def __calcMaxStartDisLineNumber(self):
         return max([ 0,self.__textDocument.getLineCount()-1-(self.__calcDisLineNumber()-1) ])
 
@@ -412,6 +471,9 @@ class CodeTextEditWidget(QWidget):
     def paintEvent(self,event):
         painter = QtGui.QPainter(self)
         painter.setFont(self.getFont())
+        painter.setPen(QtCore.Qt.NoPen)
+        painter.setBrush(CEGlobalDefines.WhiteOpaqueBrush)
+        painter.drawRect(self.getLineTextLeftXOff(),0,self.width(),self.height())
         
         visibleLineYOffInfoArray = self.__calcAnyVisibleYOff()
         
@@ -431,7 +493,7 @@ class CodeTextEditWidget(QWidget):
 
 
         
-    # 绘制行号        
+    # 绘制行号
     def __drawLineNumber(self,painter,visibleLineYOffInfoArray):
         painter.setPen(CEGlobalDefines.LineNumberPen)   
         for item in visibleLineYOffInfoArray:
@@ -545,13 +607,16 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
 
     mce = CodeTextEditWidget()
-    with codecs.open( '../tmp/temp2.txt','r','utf-8' ) as templateFileObj:
-    #with codecs.open( 'CodeTextEditWidget.py','r','utf-8' ) as templateFileObj:
+    #with codecs.open( '../tmp/temp2.txt','r','utf-8' ) as templateFileObj:
+    with codecs.open( 'CodeTextEditWidget.py','r','utf-8' ) as templateFileObj:
     
         fileStr = templateFileObj.read()
-        mce.setText(fileStr)
+        mce.setText( fileStr )
     mce.show()
     mce.resize( QtCore.QSize( 600,400 ) )
+    
+    mce.onQuickAltKey.connect(lambda k : print( 'alt',chr(k) ))
+    mce.onQuickCtrlKey.connect(lambda k : print( 'ctrl',chr(k) ))
     
     
     

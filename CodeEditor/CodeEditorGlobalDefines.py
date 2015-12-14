@@ -11,21 +11,29 @@ class CEGlobalDefines:
     CursorWidth = 2             # 光标宽度
 
     
-
-    # 画笔    
-    LineNumberPen = QtGui.QPen( QtGui.QColor( 255,0,0 ) )       # 绘制行文本的QPen
-    LineStrPen = QtGui.QPen( QtGui.QColor( 0,0,0 ) )            # 绘制行字符串的QPen
+    # 通用画笔
     
-    TextTokenPen = QtGui.QPen( QtGui.QColor( 0,0,255 ) )        # 关键字高亮时用的绘制画刷
+    
+    # 特定画笔    
+    LineNumberPen = QtGui.QPen( QtGui.QColor( 255,0,0 ) )       # 绘制行文本的QPen
+    LineTextPen = QtGui.QPen( QtGui.QColor( 0,0,0 ) )           # 绘制行字符串的QPen
+    
+    TextTokenPen = QtGui.QPen( QtGui.QColor( 0,0,255 ) )        # 关键字高亮时用的绘制画笔    
+    ExplainNotePen = QtGui.QPen( QtGui.QColor( 192,192,192 ) )  # 注释文本使用的画笔
+    StrTextPen = QtGui.QPen( QtGui.QColor( 0,170,0 ) )          # 单引号、双引号、三引号内部文本使用的画笔
+    
 
-
-    # 画刷
+    # 通用画刷
+    WhiteOpaqueBrush = QtGui.QBrush( QtGui.QColor( 255,255,255,255 ),QtCore.Qt.SolidPattern )       # 白色不透明画刷
+    
+    
+    # 特定画刷
     LineSelectedBKBrush = QtGui.QBrush( QtGui.QColor( 100,200,0,100 ),QtCore.Qt.SolidPattern )      # 绘制输入焦点所在行的行背景画刷
     LineUnSelectedBKBrush = QtGui.QBrush( QtGui.QColor( 100,200,0,100 ),QtCore.Qt.NoBrush )
     
     TextSelectedBKBrush = QtGui.QBrush( QtGui.QColor( 200,100,0,150 ),QtCore.Qt.SolidPattern )      # 选中文本高亮时用的背景画刷
 
-
+    
 
 
 
