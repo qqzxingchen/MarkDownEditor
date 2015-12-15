@@ -4,12 +4,14 @@ from PyQt5 import QtGui, QtCore
 
 
 
-class CEGlobalDefines:
+class CodeEditorGlobalDefines:
     
     CharDistancePixel = 1       # 同一行相邻两个字符之间的像素间隔
     TextYOff = 4                # 编辑器文本距离上边的距离
     CursorWidth = 2             # 光标宽度
 
+    spaceToInsertTOL = 4        # 当选中文本的情况下，按下tab键时，被选中文本的各行都需要在行首插入spaceToInsertTOL个空白字符
+    
     
     # 通用画笔
     
