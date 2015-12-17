@@ -110,62 +110,77 @@ class TextDocument(QtCore.QObject):
         lastOperate = self.popOperates()
         if lastOperate == None:
             return
-        
+        lastOperate.reverse()
         for record in lastOperate:
-            if record.recordType == OperateRecord.OPERATETYPE_DELLINE:
-                self.delLine(record.lineIndex,False)
-            elif record.recordType == OperateRecord.OPERATETYPE_ADDLINE:
-                self.addLine(record.lineIndex,record.text,False)
-            else:
-                self.changeLineText(record.lineIndex, record.text, False)
+            if record.recordType == OperateRecord.OPERATETYPE_INSERTTEXT:
+                self.insertText( record.indexPos, record.text , False)
+            elif record.recordType == OperateRecord.OPERATETYPE_DELETETEXT:
+                self.deleteText( record.indexPos, record.length, False)
+            
 
-
-    def insertText(self,xyIndexPosTuple,text):
+    def insertText(self,xyIndexPosTuple,text,record = True):
         retuDict = FrequentlyUsedFunc.splitTextToLines(text)
         splitedTexts = retuDict['splitedTexts']
         if len(splitedTexts) == 0:
             return
         indexPos = xyIndexPosTuple
         for index in range(len( splitedTexts )-1):
-            indexPos = self.__insertTextWithoutLineBreak( indexPos , splitedTexts[index])
-            indexPos = self.__insertLineBreak( indexPos )
-        indexPos = self.__insertTextWithoutLineBreak( indexPos , splitedTexts[-1])
+            indexPos = self.__insertTextWithoutLineBreak( indexPos , splitedTexts[index], record)
+            indexPos = self.__insertLineBreak( indexPos , record)
+        return self.__insertTextWithoutLineBreak( indexPos , splitedTexts[-1], record)
 
-        return indexPos
-        
+
     # 插入一个换行符
-    def __insertLineBreak(self,xyIndexPosTuple):
+    def __insertLineBreak(self,xyIndexPosTuple,record = True):
         xPos = xyIndexPosTuple[0]
         yPos = xyIndexPosTuple[1]
         curLineText = self.getLineTextByIndex(yPos)
         self.changeLineText(yPos,curLineText[0:xPos] )
-        self.addLine( yPos + 1,curLineText[xPos:len(curLineText)] )        
+        self.addLine( yPos + 1,curLineText[xPos:len(curLineText)] )
+        
+        # 记录操作
+        if record == True:
+            self.addRecord( OperateRecord.deleteText( (len(curLineText),yPos),1 ) )
+        
         return (0,yPos+1)
         
     # 插入一段没有换行符的文本
-    def __insertTextWithoutLineBreak(self,xyIndexPosTuple,text):        
+    def __insertTextWithoutLineBreak(self,xyIndexPosTuple,text,record = True):        
         xPos = xyIndexPosTuple[0]
         yPos = xyIndexPosTuple[1]
         curLineText = self.getLineTextByIndex(yPos)
-        self.changeLineText(yPos, curLineText[0:xPos] + text + curLineText[xPos:len(curLineText)])        
+        self.changeLineText(yPos, curLineText[0:xPos] + text + curLineText[xPos:len(curLineText)])
+        
+        # 记录操作
+        if record == True:
+            self.addRecord( OperateRecord.deleteText( (xPos,yPos),len(text) ) )
+         
         return ( len(curLineText[0:xPos] + text) ,yPos)
         
     # 从xyPos的位置起向右删掉length长度的字符
-    def deleteText(self,xyIndexPosTuple,length):
+    def deleteText(self,xyIndexPosTuple,length,record = True):
         xPos = xyIndexPosTuple[0]
         yPos = xyIndexPosTuple[1]
         
         while len(self.getLineTextByIndex(yPos))-xPos < length:
-            self.__deleteLineBreak(yPos)
+            self.__deleteLineBreak(yPos,record)
             length -= 1
             
         curLineText = self.getLineTextByIndex(yPos)
         self.changeLineText( yPos,curLineText[0:xPos]+curLineText[xPos+length:len(curLineText)] )
 
+        if record == True:
+            self.addRecord( OperateRecord.insertText( (xPos,yPos),curLineText[xPos:xPos+length] ) )
+
         return xyIndexPosTuple
 
         
-    def deleteOneLine(self,xyIndexPosTuple):
+    def deleteOneLine(self,xyIndexPosTuple,record = True):
+        # 记录操作
+        if record == True:
+            actLineStr = self.getLineTextByIndex(xyIndexPosTuple[1]) + self.getSplitedChar()
+            self.addRecord(OperateRecord.deleteText( (0,xyIndexPosTuple[1]),len(actLineStr) ))
+            
         self.delLine(xyIndexPosTuple[1])
         if self.isIndexPosValid(xyIndexPosTuple) == False:
             l = self.getLineCount()-1
@@ -176,13 +191,15 @@ class TextDocument(QtCore.QObject):
 
     # 删掉第lineIndex行的行尾换行符，其实质是将第lineIndex和第lineIndex+1行的文本合并为一行
     # 如果不存在第lineIndex+1行，则什么都不做
-    def __deleteLineBreak(self,lineIndex):
+    def __deleteLineBreak(self,lineIndex,record = True):
         text1 = self.getLineTextByIndex(lineIndex)
         text2 = self.getLineTextByIndex(lineIndex+1,'')
         self.changeLineText(lineIndex, text1+text2)
         self.delLine(lineIndex+1)
     
-    
+        # 记录操作
+        if record == True:
+            self.addRecord( OperateRecord.insertText( (len(text1),lineIndex),self.getSplitedChar() ) )
     
     
     
@@ -333,42 +350,24 @@ class TextDocument(QtCore.QObject):
         else:
             return True
     
-    def changeLineText(self,lineIndex,newText,record = True):
+    def changeLineText(self,lineIndex,newText):
         if self.isLineIndexValid(lineIndex) == False:
             return False
-        
-        # 记录操作
-        if record == True:
-            self.addRecord( OperateRecord.changeText(lineIndex,self.__lineTextInfoDictArray[lineIndex][TextDocument.LINE_TEXT_STR]) )
-        
         self.__lineTextInfoDictArray[lineIndex] = {TextDocument.LINE_TEXT_STR:newText}
         return True
         
-    def delLine(self,lineIndex,record = True):
+    def delLine(self,lineIndex):
         if self.isLineIndexValid(lineIndex) == False:
             return False
-
-        # 记录操作
-        if record == True:
-            if len(self.__lineTextInfoDictArray) == 1:
-                self.addRecord( OperateRecord.changeText(lineIndex,self.__lineTextInfoDictArray[lineIndex][TextDocument.LINE_TEXT_STR]) )
-            else:
-                self.addRecord( OperateRecord.addLine(lineIndex,self.__lineTextInfoDictArray[lineIndex][TextDocument.LINE_TEXT_STR]) )            
-        
         self.__lineTextInfoDictArray.remove( self.__lineTextInfoDictArray[lineIndex] )
         if len(self.__lineTextInfoDictArray) == 0:
             self.__lineTextInfoDictArray.append( {TextDocument.LINE_TEXT_STR:''} )            
         return True
     
     # 文本将会把newText插入到lineIndex之前，使newText称为新的第lineIndex号元素
-    def addLine(self,lineIndex,newText,record = True):
+    def addLine(self,lineIndex,newText):
         if lineIndex < 0:
             return False
-        
-        # 记录操作
-        if record == True:
-            self.addRecord( OperateRecord.delLine(lineIndex) )
-        
         self.__lineTextInfoDictArray.insert(lineIndex, {TextDocument.LINE_TEXT_STR:newText})
         return True
     

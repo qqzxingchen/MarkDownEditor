@@ -105,9 +105,13 @@ class CodeTextEditWidget(QWidget):
     def temp(self,key):
         if key == QtCore.Qt.Key_Z:
             self.__textDocument.redoOneStep()
+            cursorIndexPos = self.__cursor.getCursorIndexPos()
+            if self.__textDocument.isIndexPosValid(cursorIndexPos) == False:
+                self.__cursor.setGlobalCursorPos( self.__textDocument.formatIndexPos(cursorIndexPos) )
             self.update()
         
         
+    
     
     
     

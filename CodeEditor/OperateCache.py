@@ -20,20 +20,21 @@
 
 
 class OperateRecord:
-    OPERATETYPE_CHANGETEXT = 'changeText'
-    OPERATETYPE_DELLINE = 'delLine'
-    OPERATETYPE_ADDLINE = 'addLine'
-    OPERATETYPES = [OPERATETYPE_CHANGETEXT,OPERATETYPE_DELLINE,OPERATETYPE_ADDLINE]
+    OPERATETYPE_INSERTTEXT = 'insertText'
+    OPERATETYPE_DELETETEXT = 'deleteText'
+    OPERATETYPES = [OPERATETYPE_INSERTTEXT, \
+                    OPERATETYPE_DELETETEXT]
     
-    changeText =    lambda lineIndex,text   : OperateRecord( OperateRecord.OPERATETYPE_CHANGETEXT,lineIndex,text )
-    delLine =       lambda lineIndex        : OperateRecord( OperateRecord.OPERATETYPE_DELLINE,lineIndex )
-    addLine =       lambda lineIndex,text   : OperateRecord( OperateRecord.OPERATETYPE_ADDLINE,lineIndex,text )
+    insertText = lambda indexPos,text                   : OperateRecord(OperateRecord.OPERATETYPE_INSERTTEXT, \
+                                                                        indexPos = indexPos,text = text)
+    deleteText = lambda indexPos,length,isRight = True  : OperateRecord(OperateRecord.OPERATETYPE_DELETETEXT, \
+                                                                        indexPos = indexPos,length = length,isRight = isRight)
     
     # recordType指代了执行
-    def __init__(self,recordType,lineIndex,text = None):
+    def __init__(self,recordType,**otherArgs):
         self.recordType = recordType
-        self.lineIndex = lineIndex
-        self.text = text
+        for key in otherArgs:
+            setattr(self, key, otherArgs.get(key))
         
         
 
