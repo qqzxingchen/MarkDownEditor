@@ -105,24 +105,21 @@ class TextDocument(QtCore.QObject):
 
 
 
-
     def redoOneStep(self):
         lastOperate = self.popOperates()
         if lastOperate == None:
             return
-        lastOperate.reverse()
-        for record in lastOperate:
+        for index in range(len(lastOperate)):
+            record = lastOperate[len(lastOperate)-index-1]
             if record.recordType == OperateRecord.OPERATETYPE_INSERTTEXT:
                 self.insertText( record.indexPos, record.text , False)
             elif record.recordType == OperateRecord.OPERATETYPE_DELETETEXT:
                 self.deleteText( record.indexPos, record.length, False)
-            
+        return lastOperate
+        
 
     def insertText(self,xyIndexPosTuple,text,record = True):
-        retuDict = FrequentlyUsedFunc.splitTextToLines(text)
-        splitedTexts = retuDict['splitedTexts']
-        if len(splitedTexts) == 0:
-            return
+        splitedTexts = FrequentlyUsedFunc.splitTextToLines(text)['splitedTexts']
         indexPos = xyIndexPosTuple
         for index in range(len( splitedTexts )-1):
             indexPos = self.__insertTextWithoutLineBreak( indexPos , splitedTexts[index], record)
@@ -174,19 +171,24 @@ class TextDocument(QtCore.QObject):
 
         return xyIndexPosTuple
 
-        
+    
+    # 删掉一行代表删掉改行的文本+换行符
     def deleteOneLine(self,xyIndexPosTuple,record = True):
+        '''    该方法较为简单，但是无法删掉文本的最后一行（到底使用哪一种方法还需要看情况）
+        yPos = xyIndexPosTuple[1]
+        length = len(self.getLineTextByIndex(yPos))
+        return self.deleteText( (0,yPos), length+1, record )        
+        '''
         # 记录操作
         if record == True:
             actLineStr = self.getLineTextByIndex(xyIndexPosTuple[1]) + self.getSplitedChar()
             self.addRecord(OperateRecord.deleteText( (0,xyIndexPosTuple[1]),len(actLineStr) ))
-            
+        
         self.delLine(xyIndexPosTuple[1])
         if self.isIndexPosValid(xyIndexPosTuple) == False:
             l = self.getLineCount()-1
             xyIndexPosTuple = ( len(self.getLineTextByIndex(l)),l )
         return xyIndexPosTuple
-
 
 
     # 删掉第lineIndex行的行尾换行符，其实质是将第lineIndex和第lineIndex+1行的文本合并为一行
@@ -419,7 +421,7 @@ class TextDocument(QtCore.QObject):
 
 
     # 根据当前最新的文本，来重绘文本信息Dict
-    @FrequentlyUsedFunc.funcExeTime
+    # @FrequentlyUsedFunc.funcExeTime
     def __refreshLineTextInfoDictByIndex(self,index):
         lineHeight = self.__fontMetrics.lineSpacing()        
         curLineText = self.getLineTextByIndex(index)

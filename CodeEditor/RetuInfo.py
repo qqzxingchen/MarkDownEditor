@@ -3,24 +3,25 @@
 
 
 class RetuInfo:
-    SuccessCheckFuncName = 'isSuccess'
+    SuccessSign = 'isSuccess'
     
     @staticmethod
     def info(**args):
         retuObj = {}
         for key in args:
             retuObj[key] = args[key]
-        retuObj[RetuInfo.SuccessCheckFuncName] = lambda : True
         return retuObj
 
     @staticmethod
     def success(**args):
-        return RetuInfo.info(**args)
+        retuObj = RetuInfo.info(**args)
+        retuObj[RetuInfo.SuccessSign] = True
+        return retuObj
         
     @staticmethod
     def error(**args):
         retuObj = RetuInfo.info(**args)
-        retuObj[RetuInfo.SuccessCheckFuncName] = lambda : False
+        retuObj[RetuInfo.SuccessSign] = False
         return retuObj
 
 

@@ -108,6 +108,7 @@ class CodeTextEditWidget(QWidget):
             cursorIndexPos = self.__cursor.getCursorIndexPos()
             if self.__textDocument.isIndexPosValid(cursorIndexPos) == False:
                 self.__cursor.setGlobalCursorPos( self.__textDocument.formatIndexPos(cursorIndexPos) )
+            self.clearSelectText(False)
             self.update()
         
         
@@ -269,7 +270,7 @@ class CodeTextEditWidget(QWidget):
             elif FrequentlyUsedFunc.onlyCtrlModifier(modifiers):
                 newCursorIndexPos = self.__textDocument.deleteOneLine( self.__cursor.getCursorIndexPos() )
                 self.__cursor.setGlobalCursorPos(newCursorIndexPos)
-                
+
         self.update()
     
     def __onDisplayCharKey(self,event):
