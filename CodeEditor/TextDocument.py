@@ -14,8 +14,15 @@ lineTextInfoDict['normalLineTextPixmap']         一个QPixmap对象，绘制对
 lineTextInfoDict['charWidthArray']               绘制到QPixmap对象上时，每个字符的字符宽度（像素数）
 '''
 
+#class __BaseDocument__(QtCore.QObject):
+    
+
+
+
 
 class TextDocument(QtCore.QObject):
+
+    lineTextChangedSignal = QtCore.pyqtSignal()
 
     LINE_TEXT_STR = 'lineText'
     CHAR_WIDTH_ARRAY = 'charWidthArray'
@@ -60,13 +67,12 @@ class TextDocument(QtCore.QObject):
         self.__lineMaxWidth = 0             # 实时保存最大像素宽度
         self.setFont( font )
         
-        
         # 用户操作记录
         self.__operateCache = OperateCache()
         for funcName in OperateCache.funcNames:
             setattr(self, funcName, getattr(self.__operateCache, funcName))
                 
-        
+        self.lineTextChangedSignal.connect(self.afterLineTextChanged)
 
 
 
@@ -79,7 +85,7 @@ class TextDocument(QtCore.QObject):
         self.__text = text
         self.__afterTextChanged()
     def getText(self):
-        return self.text
+        return self.__text
     def getSplitedChar(self):
         return self.__splitedChar
     
@@ -124,7 +130,11 @@ class TextDocument(QtCore.QObject):
         for index in range(len( splitedTexts )-1):
             indexPos = self.__insertTextWithoutLineBreak( indexPos , splitedTexts[index], record)
             indexPos = self.__insertLineBreak( indexPos , record)
-        return self.__insertTextWithoutLineBreak( indexPos , splitedTexts[-1], record)
+        indexPos = self.__insertTextWithoutLineBreak( indexPos , splitedTexts[-1], record)
+        
+        self.lineTextChangedSignal.emit()
+
+        return indexPos
 
 
     # 插入一个换行符
@@ -169,6 +179,8 @@ class TextDocument(QtCore.QObject):
         if record == True:
             self.addRecord( OperateRecord.insertText( (xPos,yPos),curLineText[xPos:xPos+length] ) )
 
+        self.lineTextChangedSignal.emit()
+
         return xyIndexPosTuple
 
     
@@ -188,6 +200,9 @@ class TextDocument(QtCore.QObject):
         if self.isIndexPosValid(xyIndexPosTuple) == False:
             l = self.getLineCount()-1
             xyIndexPosTuple = ( len(self.getLineTextByIndex(l)),l )
+        
+        self.lineTextChangedSignal.emit()
+
         return xyIndexPosTuple
 
 
@@ -204,10 +219,20 @@ class TextDocument(QtCore.QObject):
             self.addRecord( OperateRecord.insertText( (len(text1),lineIndex),self.getSplitedChar() ) )
     
     
+    @FrequentlyUsedFunc.funcExeTime
+    def afterLineTextChanged(self):
+        text = ''
+        for index in range(self.getLineCount()):
+            text += self.getLineTextByIndex(index) + self.getSplitedChar()
+        self.__text = text
+        
+        print (re.findall( '\'\'\'' , text, re.MULTILINE))
+            
+        
     
     
-    
-    
+
+
         
 
     # 计算从indexPos1到indexPos2的距离（认为indexPos1是起点，indexPos2是终点）

@@ -4,15 +4,9 @@ from CodeEditor.RetuInfo import RetuInfo
 
 
 
-
-
 class FrequentlyUsedFunc:
-    SingleCharKeyRanges = [(0x20,0x2F), \
-                          (0x3A,0x3F), \
-                          (0x40,0x40), \
-                          (0x5B,0x5F), \
-                          (0x60,0x60), \
-                          (0x7B,0x7E)]
+    SingleCharKeyRanges = [(0x20,0x2F),(0x3A,0x3F),(0x40,0x40), \
+                           (0x5B,0x5F),(0x60,0x60),(0x7B,0x7E)]
     @staticmethod
     def isSingleCharKey(key):
         for keyRange in FrequentlyUsedFunc.SingleCharKeyRanges:

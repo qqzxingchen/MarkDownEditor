@@ -421,7 +421,9 @@ class CodeTextEditWidget(QWidget):
     def insertStr(self,event):
         if len(event.commitString()) == 0:
             return
+        self.__textDocument.startRecord()
         indexPos = self.__textDocument.insertText(self.__cursor.getCursorIndexPos(),event.commitString())  
+        self.__textDocument.endRecord()
         self.__cursor.setGlobalCursorPos(indexPos)
         self.update()
     
