@@ -268,8 +268,7 @@ class CodeTextEditWidget(QWidget):
                         self.__cursor.setGlobalCursorPos(newCursorIndexPos)
                         self.__textDocument.deleteText(newCursorIndexPos,1 )
             elif FrequentlyUsedFunc.onlyCtrlModifier(modifiers):
-                newCursorIndexPos = self.__textDocument.deleteOneLine( self.__cursor.getCursorIndexPos() )
-                self.__cursor.setGlobalCursorPos(newCursorIndexPos)
+                pass
 
         self.update()
     
@@ -309,19 +308,18 @@ class CodeTextEditWidget(QWidget):
             indexPos = self.__textDocument.insertText(self.__cursor.getCursorIndexPos(), ' '*insertSpaceLen)
             self.__cursor.setGlobalCursorPos(indexPos)
         else:
-            spaceToInsertTOL = 4
             curSelectedIndexPos = self.getSelectTextByIndexPos()
             retuSortedPoses = FrequentlyUsedFunc.sortedIndexPos( curSelectedIndexPos[0],curSelectedIndexPos[1])
             
             affectedLineIndexList = list(range( retuSortedPoses['first'][1],retuSortedPoses['second'][1]+1 ))
             for lineIndex in affectedLineIndexList:
-                self.__textDocument.insertText( (0,lineIndex),' '*spaceToInsertTOL )
+                self.__textDocument.insertText( (0,lineIndex),' '*CEGD.spaceToInsertTOL )
             
             curCursorPos = self.__cursor.getCursorIndexPos()
             if affectedLineIndexList.count(curCursorPos[1]) != 0:
-                self.__cursor.setGlobalCursorPos( (curCursorPos[0]+spaceToInsertTOL,curCursorPos[1]) )            
-            self.setSelectTextByIndexPos( (curSelectedIndexPos[0][0]+spaceToInsertTOL,curSelectedIndexPos[0][1]) ,\
-                                          (curSelectedIndexPos[1][0]+spaceToInsertTOL,curSelectedIndexPos[1][1]) , False)
+                self.__cursor.setGlobalCursorPos( (curCursorPos[0]+CEGD.spaceToInsertTOL,curCursorPos[1]) )            
+            self.setSelectTextByIndexPos( (curSelectedIndexPos[0][0]+CEGD.spaceToInsertTOL,curSelectedIndexPos[0][1]) ,\
+                                          (curSelectedIndexPos[1][0]+CEGD.spaceToInsertTOL,curSelectedIndexPos[1][1]) , False)
             
         self.update()
     

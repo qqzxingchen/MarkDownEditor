@@ -63,15 +63,13 @@ class OperateRecord:
         
         
     
-    # recordType指代了执行
+    # recordType指代了类型
     def __init__(self,recordType,**otherArgs):
         self.recordType = recordType
         for key in otherArgs:
             setattr(self, key, otherArgs.get(key))
     
     
-    
-        
     # 只是用来展示数据
     def showRecord(self):
         if self.recordType == OperateRecord.OPERATETYPE_INSERTTEXT:
@@ -133,7 +131,7 @@ class OperateCache:
             if retuDict[RetuInfo.SuccessSign]:
                 operate.remove(operate[index])
                 operate.remove(operate[index-1])
-                operate.isnert( index-1,retuDict['combinedRecord'] )
+                operate.insert( index-1,retuDict['combinedRecord'] )
             index -= 1
         
         if len(self.__operates) == 0:
