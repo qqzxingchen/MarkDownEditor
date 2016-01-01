@@ -72,12 +72,22 @@ class FrequentlyUsedFunc:
             splitedChar = '\n'
         return RetuInfo.info( splitedTexts=splitedTexts,splitedChar=splitedChar )
 
-
+    @staticmethod
+    def calcMidNumberByRange(minNumber,value,maxNumber):
+        minNumber = min( [minNumber,maxNumber] )
+        maxNumber = max( [minNumber,maxNumber] )
+        if value < minNumber:
+            return minNumber
+        elif value > maxNumber:
+            return maxNumber
+        else:
+            return value
+        
 
 
 
     # 打印函数执行的时间
-    # 用法：@FrequentlyUsedFunc.funcExeTime
+    # 用法：@FUF.funcExeTime
     TotalTime = 0
     @staticmethod
     def funcExeTime(func):
@@ -91,7 +101,8 @@ class FrequentlyUsedFunc:
             return retValue  
         return newFunc  
 
-
+if __name__ == '__main__':
+    print (FrequentlyUsedFunc.calcMidNumberByRange( -1,2,4 ))
 
 
 

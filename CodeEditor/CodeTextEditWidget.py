@@ -8,7 +8,7 @@ from PyQt5 import QtCore
 from CodeEditor.TextDocument import TextDocument
 from CodeEditor.TextCursor import TextCursor
 from CodeEditor.CodeEditorGlobalDefines import CodeEditorGlobalDefines as CEGD
-from CodeEditor.FrequentlyUsedFunc import FrequentlyUsedFunc
+from CodeEditor.FrequentlyUsedFunc import FrequentlyUsedFunc as FUF
 from CodeEditor.EditorSettings import EditorSettings
 from CodeEditor.RetuInfo import RetuInfo
 
@@ -36,27 +36,20 @@ class CodeTextEditWidget(QWidget):
 
 
     def showLineNumberAsTop(self,lineNumber,update=True):
-        if lineNumber < 0:
-            self.setStartDisLineNumber(0,update)
-        elif lineNumber >= self.__textDocument.getLineCount():
-            self.setStartDisLineNumber( self.__textDocument.getLineCount()-1,update )
-        else:
-            self.setStartDisLineNumber( int(lineNumber),update )
+        suitedLineNumber = FUF.calcMidNumberByRange( 0,lineNumber,self.__textDocument.getLineCount()-1 )
+        self.setStartDisLineNumber(suitedLineNumber,update)
+        
     def showLeftXOffAsLeft(self,xOff,update=True):
-        if xOff < 0:
-            self.setStartDisLetterXOff(0,update)
-        else:
-            self.setStartDisLetterXOff(int(xOff),update) 
-    
-    
+        self.setStartDisLetterXOff( (FUF.calcMidNumberByRange(0, xOff, xOff)) ,update)
+        
     
     # 将本次选中的文本与上次选中的文本进行合并
     def setSelectTextByIndexPos(self,startIndexPosTuple,endIndexPosTuple,update = True):
         if self.selectedTextIndexPos != None:
-            if FrequentlyUsedFunc.isIndexPosEqual( startIndexPosTuple,self.selectedTextIndexPos[0] ) and \
-                FrequentlyUsedFunc.isIndexPosEqual( endIndexPosTuple,self.selectedTextIndexPos[1] ):
+            if FUF.isIndexPosEqual( startIndexPosTuple,self.selectedTextIndexPos[0] ) and \
+                FUF.isIndexPosEqual( endIndexPosTuple,self.selectedTextIndexPos[1] ):
                 return
-        if FrequentlyUsedFunc.isIndexPosEqual( startIndexPosTuple,endIndexPosTuple ) == True:
+        if FUF.isIndexPosEqual( startIndexPosTuple,endIndexPosTuple ) == True:
             self.selectedTextIndexPos = None
         else:
             self.selectedTextIndexPos = (startIndexPosTuple,endIndexPosTuple)
@@ -67,11 +60,11 @@ class CodeTextEditWidget(QWidget):
         if self.selectedTextIndexPos == None:
             self.selectedTextIndexPos = (startIndexPosTuple,endIndexPosTuple)
         else:
-            if FrequentlyUsedFunc.isIndexPosEqual(self.selectedTextIndexPos[1],startIndexPosTuple ):
+            if FUF.isIndexPosEqual(self.selectedTextIndexPos[1],startIndexPosTuple ):
                 self.selectedTextIndexPos = ( self.selectedTextIndexPos[0],endIndexPosTuple )
             else:
                 self.selectedTextIndexPos = ( endIndexPosTuple,self.selectedTextIndexPos[1] )
-        if FrequentlyUsedFunc.isIndexPosEqual(self.selectedTextIndexPos[0],self.selectedTextIndexPos[1]):
+        if FUF.isIndexPosEqual(self.selectedTextIndexPos[0],self.selectedTextIndexPos[1]):
             self.selectedTextIndexPos = None
         if update == True:
             self.update()
@@ -86,7 +79,7 @@ class CodeTextEditWidget(QWidget):
         if self.selectedTextIndexPos != None:
             selectedStart = self.getSelectTextByIndexPos()[0]
             selectedEnd = self.getSelectTextByIndexPos()[1]
-            sortedInfoDict = FrequentlyUsedFunc.sortedIndexPos( selectedStart , selectedEnd )
+            sortedInfoDict = FUF.sortedIndexPos( selectedStart , selectedEnd )
             self.__cursor.setGlobalCursorPos( sortedInfoDict['first'])
             value = self.__textDocument.calcIndexPosDistance(selectedStart,selectedEnd)            
             self.__textDocument.deleteText(self.__cursor.getCursorIndexPos(), value)
@@ -118,7 +111,7 @@ class CodeTextEditWidget(QWidget):
     
 
     def __initData(self):
-        # 为了代码的可读性，将部分属性值放置到EditorSettings类中。然后将类的方法定向到本类中
+        # 为了代码的可读性，将部分属性值（影响文本显示的属性值）放置到EditorSettings类中。然后将类的方法定向到本类中
         self.__settings = EditorSettings()
         for funcName in EditorSettings.getFuncNames + EditorSettings.setFuncNames + EditorSettings.signalNames:
             setattr(self, funcName, getattr(self.__settings, funcName) )
@@ -221,14 +214,14 @@ class CodeTextEditWidget(QWidget):
         modifiers = event.modifiers()
         
         oldCursorIndexPos = self.__cursor.getCursorIndexPos()
-        if ( FrequentlyUsedFunc.hasModifier(modifiers) == False ) or ( FrequentlyUsedFunc.hasCtrlModifier(modifiers) == False ):
+        if ( FUF.hasModifier(modifiers) == False ) or ( FUF.hasCtrlModifier(modifiers) == False ):
             dictMap = { str(QtCore.Qt.Key_Left) :self.__textDocument.moveIndexPosLeft   , \
                         str(QtCore.Qt.Key_Right):self.__textDocument.moveIndexPosRight  , \
                         str(QtCore.Qt.Key_Up)   :self.__textDocument.moveIndexPosUp     , \
                         str(QtCore.Qt.Key_Down) :self.__textDocument.moveIndexPosDown  }
             newCursorIndexPos = dictMap[str(key)](oldCursorIndexPos)
 
-        elif FrequentlyUsedFunc.hasCtrlModifier(modifiers):
+        elif FUF.hasCtrlModifier(modifiers):
             if key == QtCore.Qt.Key_Up:
                 self.showLineNumberAsTop(self.getStartDisLineNumber()-1)
                 return 
@@ -243,7 +236,7 @@ class CodeTextEditWidget(QWidget):
         
         
         self.__cursor.setGlobalCursorPos(newCursorIndexPos)
-        if FrequentlyUsedFunc.hasShiftModifier(event.modifiers()) == True:
+        if FUF.hasShiftModifier(event.modifiers()) == True:
             self.addSelectTextByIndexPos(oldCursorIndexPos, newCursorIndexPos)
         else:
             self.clearSelectText()
@@ -252,24 +245,30 @@ class CodeTextEditWidget(QWidget):
         
     
     def __onDeleteKey(self,event):
-        key = event.key()
-        modifiers = event.modifiers()
-
         if self.getSelectTextByIndexPos() != None:
-            self.deleteSelectText(False)
+            self.deleteSelectText(True)
+            return 
+        curCursorIndexPos = self.__cursor.getCursorIndexPos()
+        if FUF.hasModifier(event.modifiers()) == False:
+            if event.key() == QtCore.Qt.Key_Delete:
+                newCursorIndexPos = self.__textDocument.moveIndexPosRight(curCursorIndexPos)
+            else:
+                newCursorIndexPos = self.__textDocument.moveIndexPosLeft(curCursorIndexPos)
+        elif FUF.onlyCtrlModifier(event.modifiers()):
+            if event.key() == QtCore.Qt.Key_Delete:
+                newCursorIndexPos = self.__textDocument.moveIndexPosRightByWord(curCursorIndexPos)
+            else:
+                newCursorIndexPos = self.__textDocument.moveIndexPosLeftByWord(curCursorIndexPos)
         else:
-            if FrequentlyUsedFunc.hasModifier(modifiers) == False:
-                if key == QtCore.Qt.Key_Delete:
-                    self.__textDocument.deleteText(self.__cursor.getCursorIndexPos(),1 )
-                elif key == QtCore.Qt.Key_Backspace:
-                    curCursorIndexPos = self.__cursor.getCursorIndexPos()
-                    newCursorIndexPos = self.__textDocument.moveIndexPosLeft( curCursorIndexPos )
-                    if FrequentlyUsedFunc.isIndexPosEqual(newCursorIndexPos, curCursorIndexPos) == False:
-                        self.__cursor.setGlobalCursorPos(newCursorIndexPos)
-                        self.__textDocument.deleteText(newCursorIndexPos,1 )
-            elif FrequentlyUsedFunc.onlyCtrlModifier(modifiers):
-                pass
+            return 
 
+        distance = self.__textDocument.calcIndexPosDistance(curCursorIndexPos, newCursorIndexPos, False)
+        if distance > 0:
+            self.__cursor.setGlobalCursorPos(curCursorIndexPos)
+            self.__textDocument.deleteText(curCursorIndexPos,distance )
+        elif distance < 0:
+            self.__cursor.setGlobalCursorPos(newCursorIndexPos)
+            self.__textDocument.deleteText(newCursorIndexPos,-distance )
         self.update()
     
     def __onDisplayCharKey(self,event):
@@ -278,13 +277,13 @@ class CodeTextEditWidget(QWidget):
         self.update()
     
     def __onDisplayLetterKey(self,event):
-        if (FrequentlyUsedFunc.hasModifier(event.modifiers()) == False) or (FrequentlyUsedFunc.onlyShiftModifier(event.modifiers()) == True):        
+        if (FUF.hasModifier(event.modifiers()) == False) or (FUF.onlyShiftModifier(event.modifiers()) == True):        
             indexPos = self.__textDocument.insertText(self.__cursor.getCursorIndexPos(), event.text())
             self.__cursor.setGlobalCursorPos(indexPos)
             self.update()
-        elif FrequentlyUsedFunc.onlyCtrlModifier(event.modifiers()):
+        elif FUF.onlyCtrlModifier(event.modifiers()):
             self.onQuickCtrlKey.emit(event.key())
-        elif FrequentlyUsedFunc.onlyAltModifier(event.modifiers()):
+        elif FUF.onlyAltModifier(event.modifiers()):
             self.onQuickAltKey.emit(event.key())
         
     
@@ -309,7 +308,7 @@ class CodeTextEditWidget(QWidget):
             self.__cursor.setGlobalCursorPos(indexPos)
         else:
             curSelectedIndexPos = self.getSelectTextByIndexPos()
-            retuSortedPoses = FrequentlyUsedFunc.sortedIndexPos( curSelectedIndexPos[0],curSelectedIndexPos[1])
+            retuSortedPoses = FUF.sortedIndexPos( curSelectedIndexPos[0],curSelectedIndexPos[1])
             
             affectedLineIndexList = list(range( retuSortedPoses['first'][1],retuSortedPoses['second'][1]+1 ))
             for lineIndex in affectedLineIndexList:
@@ -325,13 +324,13 @@ class CodeTextEditWidget(QWidget):
     
     
     def __onPageKey(self,event):
-        if FrequentlyUsedFunc.hasModifier(event.modifiers()) == False:
+        if FUF.hasModifier(event.modifiers()) == False:
             if event.key() == QtCore.Qt.Key_PageUp:
                 newLineNumber = max([ self.getStartDisLineNumber()-self.__calcDisLineNumber(),0 ])
             elif event.key() == QtCore.Qt.Key_PageDown:
                 newLineNumber = min([ self.getStartDisLineNumber()+self.__calcDisLineNumber(),self.__textDocument.getLineCount()-1 ])
         else:
-            if FrequentlyUsedFunc.onlyCtrlModifier(event.modifiers()):
+            if FUF.onlyCtrlModifier(event.modifiers()):
                 if event.key() == QtCore.Qt.Key_PageUp:
                     newLineNumber = 0
                 elif event.key() == QtCore.Qt.Key_PageDown:
@@ -345,7 +344,7 @@ class CodeTextEditWidget(QWidget):
         self.__cursor.setGlobalCursorPos( newIndexPos )
     
     def __onHomeEndKey(self,event):
-        if FrequentlyUsedFunc.hasModifier(event.modifiers()) == False:
+        if FUF.hasModifier(event.modifiers()) == False:
             curIndexPos = self.__cursor.getCursorIndexPos()
             if event.key() == QtCore.Qt.Key_Home:
                 newIndexPos = ( 0,curIndexPos[1] )
@@ -353,7 +352,7 @@ class CodeTextEditWidget(QWidget):
                 newIndexPos = ( len(self.__textDocument.getLineTextByIndex(curIndexPos[1])),curIndexPos[1] )
             self.__cursor.setGlobalCursorPos( newIndexPos )
         else:
-            if FrequentlyUsedFunc.onlyCtrlModifier(event.modifiers()):
+            if FUF.onlyCtrlModifier(event.modifiers()):
                 if event.key() == QtCore.Qt.Key_Home:
                     lineIndex = 0
                     newIndexPos = ( 0,0 )
@@ -374,33 +373,33 @@ class CodeTextEditWidget(QWidget):
         
         self.__textDocument.startRecord()
         
-        if FrequentlyUsedFunc.isEventKeyIsDirectionKey(event.key()):
+        if FUF.isEventKeyIsDirectionKey(event.key()):
             self.__onDirectionKey(event)
         
         # BackSpace和Delete键            
-        elif FrequentlyUsedFunc.isEventKeyIsDeleteKey(event.key()):
+        elif FUF.isEventKeyIsDeleteKey(event.key()):
             self.__onDeleteKey(event)
         
         # enter键
-        elif FrequentlyUsedFunc.isEventKeyIsEnterKey(event.key()):
+        elif FUF.isEventKeyIsEnterKey(event.key()):
             self.__onEnterKey(event)
             
         # tab键
-        elif FrequentlyUsedFunc.isEventKeyIsTabKey(event.key()):
+        elif FUF.isEventKeyIsTabKey(event.key()):
             self.__onTabKey(event)
                 
         # 数字键、其它可见字符
-        elif FrequentlyUsedFunc.isEventKeyIsNumber(event.key()) or FrequentlyUsedFunc.isSingleCharKey(event.key()):
+        elif FUF.isEventKeyIsNumber(event.key()) or FUF.isSingleCharKey(event.key()):
             self.__onDisplayCharKey(event)
         # 字母
-        elif FrequentlyUsedFunc.isEventKeyIsChar(event.key()):
+        elif FUF.isEventKeyIsChar(event.key()):
             self.__onDisplayLetterKey(event)
         
         # PageUp、PageDown、Home、End
-        elif FrequentlyUsedFunc.isEventKeyIsPageUpDownKey(event.key()):
+        elif FUF.isEventKeyIsPageUpDownKey(event.key()):
             self.__onPageKey(event)
             
-        elif FrequentlyUsedFunc.isEventKeyIsHomeEndKey(event.key()):
+        elif FUF.isEventKeyIsHomeEndKey(event.key()):
             self.__onHomeEndKey(event)
 
 
@@ -416,11 +415,11 @@ class CodeTextEditWidget(QWidget):
 
 
     
-    def insertStr(self,event):
-        if len(event.commitString()) == 0:
+    def insertStr(self,text):
+        if len(text) == 0:
             return
         self.__textDocument.startRecord()
-        indexPos = self.__textDocument.insertText(self.__cursor.getCursorIndexPos(),event.commitString())  
+        indexPos = self.__textDocument.insertText(self.__cursor.getCursorIndexPos(),text)  
         self.__textDocument.endRecord()
         self.__cursor.setGlobalCursorPos(indexPos)
         self.update()
@@ -563,7 +562,7 @@ class CodeTextEditWidget(QWidget):
         lineHeight = self.getFontMetrics().lineSpacing()
         selectedTextIndexPosRangeTuple = self.getSelectTextByIndexPos()
         if selectedTextIndexPosRangeTuple != None:
-            sortedIndexPosDict = FrequentlyUsedFunc.sortedIndexPos( selectedTextIndexPosRangeTuple[0],selectedTextIndexPosRangeTuple[1] )
+            sortedIndexPosDict = FUF.sortedIndexPos( selectedTextIndexPosRangeTuple[0],selectedTextIndexPosRangeTuple[1] )
             startIndexPos = sortedIndexPosDict['first']
             endIndexPos = sortedIndexPosDict['second']
 

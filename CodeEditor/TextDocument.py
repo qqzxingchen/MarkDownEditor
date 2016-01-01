@@ -2,7 +2,7 @@
 import re
 from PyQt5 import QtCore,QtGui
 from CodeEditor.CodeEditorGlobalDefines import CodeEditorGlobalDefines as CEGD
-from CodeEditor.FrequentlyUsedFunc import FrequentlyUsedFunc
+from CodeEditor.FrequentlyUsedFunc import FrequentlyUsedFunc as FUF
 from CodeEditor.OperateCache import OperateCache, OperateRecord
 
 
@@ -43,7 +43,7 @@ class __BaseDocument__(QtCore.QObject):
     
     def setText(self,text = ''):
         self.__text = text
-        retuDict = FrequentlyUsedFunc.splitTextToLines(self.__text)
+        retuDict = FUF.splitTextToLines(self.__text)
         self.__splitedChar = retuDict['splitedChar']
 
         self.__lineTextInfoDictArray = []
@@ -143,7 +143,7 @@ class __BaseDocument__(QtCore.QObject):
 
 
     # 根据当前最新的文本，来重绘文本信息Dict
-    # @FrequentlyUsedFunc.funcExeTime
+    # @FUF.funcExeTime
     def __refreshLineTextInfoDictByIndex(self,index):
         lineHeight = self.__fontMetrics.lineSpacing()        
         curLineText = self.getLineTextByIndex(index)
@@ -192,7 +192,7 @@ class __BaseDocument__(QtCore.QObject):
     def findCharMatchedSettings(self,lineStr,lineIndex):
         arr = []
         for c in lineStr:
-            if FrequentlyUsedFunc.isChineseChar(c):
+            if FUF.isChineseChar(c):
                 arr.append( (CEGD.LineTextPen,self.__chineseCharFont) )
             else:
                 arr.append( (CEGD.LineTextPen,self.__font) )
@@ -212,6 +212,8 @@ class __BaseDocument__(QtCore.QObject):
 
 
 class TextDocument(__BaseDocument__):
+
+    lineTextChangedSignal = QtCore.pyqtSignal()
 
     LINE_TEXT_STR = 'lineText'
     CHAR_WIDTH_ARRAY = 'charWidthArray'
@@ -247,7 +249,7 @@ class TextDocument(__BaseDocument__):
     def __TextChangedDecorator(funcObj):
         def _deco(*arg1,**arg2):
             retuValue = funcObj(*arg1,**arg2)
-            getattr(funcObj, '__self__').afterLineTextChanged()     # 已与对象绑定的函数会有一个属性__self__，它将标示已绑定的对象
+            getattr(funcObj, '__self__').lineTextChangedSignal.emit()     # 已与对象绑定的函数会有一个属性__self__，它将标示已绑定的对象
             return retuValue
         return _deco
 
@@ -266,7 +268,7 @@ class TextDocument(__BaseDocument__):
         self.insertText = TextDocument.__TextChangedDecorator(self.insertText)
         self.deleteText = TextDocument.__TextChangedDecorator(self.deleteText)
         
-    
+        self.lineTextChangedSignal.connect(self.afterLineTextChanged)
 
 
 
@@ -277,14 +279,13 @@ class TextDocument(__BaseDocument__):
         else:
             return len(lineStr) * [ (CEGD.StrTextPen,self.getFont()) ]
 
-    # @FrequentlyUsedFunc.funcExeTime
+    # @FUF.funcExeTime
     def afterLineTextChanged(self):
         text = ''
         for index in range(self.getLineCount()):
             text += self.getLineTextByIndex(index) + self.getSplitedChar()
         self.__text = text
-        
-        print (re.findall( '\'\'\'' , text, re.MULTILINE))
+        #print (re.findall( '\'\'\'' , text, re.MULTILINE))
 
 
 
@@ -311,7 +312,7 @@ class TextDocument(__BaseDocument__):
         
 
     def insertText(self,xyIndexPosTuple,text,record = True):
-        splitedTexts = FrequentlyUsedFunc.splitTextToLines(text)['splitedTexts']
+        splitedTexts = FUF.splitTextToLines(text)['splitedTexts']
         indexPos = xyIndexPosTuple
         for index in range(len( splitedTexts )-1):
             indexPos = self.__insertTextWithoutLineBreak( indexPos , splitedTexts[index], record)
@@ -381,7 +382,7 @@ class TextDocument(__BaseDocument__):
     # 如果absValue为True，则返回距离的绝对值，否则，
     def calcIndexPosDistance(self,indexPos1,indexPos2,absValue = True):        
         
-        sortedIndexPosDict = FrequentlyUsedFunc.sortedIndexPos(indexPos1, indexPos2)
+        sortedIndexPosDict = FUF.sortedIndexPos(indexPos1, indexPos2)
         positiveSign = -1 if (sortedIndexPosDict['changed'] == True) and (absValue == False) else 1
         
         indexPosA = sortedIndexPosDict['first']
