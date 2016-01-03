@@ -13,15 +13,56 @@ from CodeEditor.EditorSettings import EditorSettings
 
 
 class __LineNumberWidget__(QWidget):
-    def __init__(self,parent):
-        QWidget.__init__(self,parent)
     
-
-
-class __LineTextWidget(QWidget):
-    def __init__(self,parent):
+    def setVisibleLineYOffInfoArray(self,visibleLineYOffInfoArray):
+        if self.visibleLineYOffInfoArray != visibleLineYOffInfoArray:
+            self.visibleLineYOffInfoArray = visibleLineYOffInfoArray
+            self.update()
+    
+    
+    def __init__(self,editorSettingObj,parent):
         QWidget.__init__(self,parent)
+        self.getSettings = lambda : editorSettingObj
+        self.__initData()
+                
+        self.visibleLineYOffInfoArray = None
+        
+    def __initData(self):
+        for funcName in EditorSettings.getFuncNames:
+            setattr(self, funcName, getattr(self.getSettings(), funcName) )
+            
+        self.getSettings().lineTextLeftXOffChangedSignal.connect( self.__onLeftXOffChanged )
+        self.getSettings().lineNumberRightXOffChangedSignal.connect(lambda v: self.update())
+        self.getSettings().fontChangedSignal.connect(lambda v: self.update())
+        self.getSettings().startDisLineNumberChangedSignal.connect(lambda v: self.update())
+        
+    def __onLeftXOffChanged(self,newLeftXOff):
+        self.resize( newLeftXOff,self.height() )
+        
+    def paintEvent(self, event):
+        painter = QtGui.QPainter(self)
+        painter.setFont(self.getFont())
+        painter.setPen(QtCore.Qt.NoPen)
+        painter.setBrush(CEGD.WhiteOpaqueBrush)
+        #painter.drawRect(0,0,self.width(),self.height())
 
+        painter.save()
+        self.__drawLineNumber(painter)
+        painter.restore()
+
+
+    # 绘制行号
+    def __drawLineNumber(self,painter):
+        if self.visibleLineYOffInfoArray == None:
+            return
+        
+        painter.setPen(CEGD.LineNumberPen)   
+        for item in self.visibleLineYOffInfoArray:
+            curY = item['lineYOff']
+            index = item['lineIndex']
+            lineNumberRect = painter.boundingRect( 0,curY,0,0,0,str(index+1) )
+            lineNumberRect.moveRight( self.getLineNumberRightXOff() - lineNumberRect.x() )
+            painter.drawText( lineNumberRect,0,str(index+1) )
 
 
 
@@ -103,6 +144,7 @@ class CodeTextEditWidget(QWidget):
         self.setCursorFocusOn = lambda event: self.__textCursor.setFocus(QtCore.Qt.MouseFocusReason)
         
         self.setCursor( QtCore.Qt.IBeamCursor )
+        self.__lineNumberWidget.setCursor( QtCore.Qt.ArrowCursor )
         
         
         self.onQuickCtrlKey.connect(self.temp)
@@ -117,15 +159,14 @@ class CodeTextEditWidget(QWidget):
         
         
     
-    
-    
-    
-
     def __initData(self):
         # 为了代码的可读性，将部分属性值（影响文本显示的属性值）放置到EditorSettings类中。然后将类的方法定向到本类中
         self.__settings = EditorSettings()
         for funcName in EditorSettings.getFuncNames + EditorSettings.setFuncNames + EditorSettings.signalNames:
             setattr(self, funcName, getattr(self.__settings, funcName) )
+        
+        self.__lineNumberWidget = __LineNumberWidget__(self.__settings,self)
+        self.__lineNumberWidget.setGeometry( 0,0,self.getLineTextLeftXOff(),self.height() )
     
         self.__textDocument = TextDocument()
         self.__textDocument.setFont(self.getFont(),self.getFontMetrics())
@@ -137,8 +178,8 @@ class CodeTextEditWidget(QWidget):
         self.selectedTextIndexPos = None
         
         self.fontChangedSignal.connect(self.__onFontChanged)
-        self.lineNumberRightXOffChangedSignal.connect(lambda v: self.update())
         self.lineTextLeftXOffChangedSignal.connect(lambda v: self.update())
+        self.lineNumberRightXOffChangedSignal.connect(lambda v: self.update())
         self.startDisLineNumberChangedSignal.connect(lambda v: self.update())
         self.startDisLetterXOffChangedSignal.connect(lambda v: self.update())
         self.lineTextMaxPixelChangedSignal.connect(lambda v: self.update())
@@ -147,8 +188,6 @@ class CodeTextEditWidget(QWidget):
     
     def __onFontChanged(self,newFontObj):
         self.__textDocument.setFont(self.getFont(), self.getFontMetrics())
-        cursorIndexPos = self.__textCursor.getCursorIndexPos()
-        self.__textCursor.setGlobalCursorPos(cursorIndexPos )
         self.update()
     
     
@@ -162,7 +201,7 @@ class CodeTextEditWidget(QWidget):
             moveDistance = self.getLineTextLeftXOff() - curXPixel
             moveDistance = (int(moveDistance / 100) + 1) * 100
             self.showLeftXOffAsLeft(self.getStartDisLetterXOff()-moveDistance,False)
-        elif curXPixel+CEGD.CursorWidth+20 > self.width():
+        elif curXPixel+CEGD.CursorWidth > self.width():
             moveDistance = curXPixel-self.width()
             moveDistance = (int(moveDistance / 100) + 1) * 100
             self.showLeftXOffAsLeft(self.getStartDisLetterXOff()+moveDistance, False)
@@ -197,9 +236,13 @@ class CodeTextEditWidget(QWidget):
             self.setUserDataByKey('leftMousePressed',True)
             self.setUserDataByKey('leftMousePressed_curCursor',self.__textCursor.getCursorIndexPos())
         elif event.button() == QtCore.Qt.RightButton:
+            '''
             font = QtGui.QFont( "Consolas",self.getFont().pointSize()+1 )
             font.setBold(True)
             self.setFont(font)
+            '''
+            self.setLineTextLeftXOff( self.getLineTextLeftXOff() + 10 )
+            #self.setLineNumberRightXOff( self.getLineNumberRightXOff() + 10 )
 
     def mouseMoveEvent(self, event):
         if self.getUserDataByKey('leftMousePressed') == True:
@@ -213,7 +256,8 @@ class CodeTextEditWidget(QWidget):
 
     
 
-
+    def resizeEvent(self, event):
+        self.__lineNumberWidget.setGeometry( 0,0,self.getLineTextLeftXOff(),self.height() )
 
 
 
@@ -511,20 +555,17 @@ class CodeTextEditWidget(QWidget):
     
 
       
-
+    @FUF.funcExeTime
     def paintEvent(self,event):
+        visibleLineYOffInfoArray = self.__calcAnyVisibleYOff()
+        self.__lineNumberWidget.setVisibleLineYOffInfoArray(visibleLineYOffInfoArray)
+        
         painter = QtGui.QPainter(self)
         painter.setFont(self.getFont())
         painter.setPen(QtCore.Qt.NoPen)
         painter.setBrush(CEGD.WhiteOpaqueBrush)
         painter.drawRect(self.getLineTextLeftXOff(),0,self.width(),self.height())
-        
-        visibleLineYOffInfoArray = self.__calcAnyVisibleYOff()
-        
-        painter.save()
-        self.__drawLineNumber(painter,visibleLineYOffInfoArray)
-        painter.restore()
-        
+
         painter.save()
         self.__drawLineText(painter,visibleLineYOffInfoArray,event.rect())
         painter.restore()
@@ -537,15 +578,7 @@ class CodeTextEditWidget(QWidget):
 
 
         
-    # 绘制行号
-    def __drawLineNumber(self,painter,visibleLineYOffInfoArray):
-        painter.setPen(CEGD.LineNumberPen)   
-        for item in visibleLineYOffInfoArray:
-            curY = item['lineYOff']
-            index = item['lineIndex']
-            lineNumberRect = painter.boundingRect( 0,curY,0,0,0,str(index+1) )
-            lineNumberRect.moveRight( self.getLineNumberRightXOff() - lineNumberRect.x() )
-            painter.drawText( lineNumberRect,0,str(index+1) )
+
 
 
     # 绘制每行文本
