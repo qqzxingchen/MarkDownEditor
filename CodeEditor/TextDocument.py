@@ -1,5 +1,5 @@
 
-import re
+import re,keyword
 from PyQt5 import QtCore,QtGui
 from CodeEditor.CodeEditorGlobalDefines import CodeEditorGlobalDefines as CEGD
 from CodeEditor.FrequentlyUsedFunc import FrequentlyUsedFunc as FUF
@@ -219,12 +219,15 @@ class TextDocument(__BaseDocument__):
     CHAR_WIDTH_ARRAY = 'charWidthArray'
     NORMAL_LINE_PIXMAP = 'normalLineTextPixmap'
 
-    
     UnvisibleCharSearcher = re.compile('[\s]{1,}')
     WordSearcher = re.compile('[0-9a-zA-Z]{1,}')
     ChineseSearcher = re.compile(u'[\u4e00-\u9fa5]+')
     Searchers = [UnvisibleCharSearcher,WordSearcher,ChineseSearcher]
 
+
+        
+
+    
     # 设当前行内容为lineText，当前光标的xIndexPos为curIndex（表示光标位置向左查，有curIndex个字符）
     # 该函数将会返回一个int值，该值为光标新位置距离旧位置的偏移。该位置恒为正
     # 光标的新位置为 光标向右移动一个“单词”之后的光标位置（skipSpaceAndWordByLeft表示向左移动一个单词之后的光标位置）
@@ -253,6 +256,10 @@ class TextDocument(__BaseDocument__):
             return retuValue
         return _deco
 
+    def setText(self,text = ''):
+        __BaseDocument__.setText(self, text)
+        self.lineTextChangedSignal.emit()
+
 
     def __init__(self,font=QtGui.QFont('Consolas',11) ,parent=None):
         __BaseDocument__.__init__(self, font, parent)
@@ -274,18 +281,37 @@ class TextDocument(__BaseDocument__):
 
 
     def findCharMatchedSettings(self,lineStr,lineIndex):
-        if lineIndex % 2 == 0:
-            return len(lineStr) * [ (CEGD.LineTextPen,self.getFont()) ]
-        else:
-            return len(lineStr) * [ (CEGD.StrTextPen,self.getFont()) ]
+        retuArr = []
+        arr = len(lineStr) * [0]
+        
+        for metaObj in re.finditer( r'\b[a-zA-Z]+\b' , lineStr):
+            if keyword.kwlist.count( lineStr[metaObj.span()[0]:metaObj.span()[1]] ) != 0:
+                for index in range( metaObj.span()[0],metaObj.span()[1] ):
+                    arr[index] = 1
+        for index in range(len(arr)):
+            if arr[index] == 0:
+                retuArr.append( ( CEGD.LineTextPen,self.getFont() ) )
+            else:
+                retuArr.append( ( CEGD.TextTokenPen,self.getFont() ) )
+        return retuArr
+    
+        keyword.kwlist
+        
+
+                
+        
+
+
 
     # @FUF.funcExeTime
     def afterLineTextChanged(self):
+        #print ('changed')
+        return 
         text = ''
         for index in range(self.getLineCount()):
             text += self.getLineTextByIndex(index) + self.getSplitedChar()
         self.__text = text
-        #print (re.findall( '\'\'\'' , text, re.MULTILINE))
+        print (re.findall( '\'\'\'' , text, re.MULTILINE))
 
 
 
