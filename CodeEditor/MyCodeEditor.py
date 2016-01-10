@@ -2,7 +2,7 @@
 import sys
 
 from PyQt5.QtWidgets import QWidget,QScrollBar
-from PyQt5 import QtCore
+from PyQt5 import QtCore, QtWidgets
 
 from CodeEditor.CodeTextEditWidget import CodeTextEditWidget
 from CodeEditor.CodeEditorGlobalDefines import GlobalEventFilter
@@ -17,9 +17,8 @@ class MyCodeEditor(QWidget):
         self.__callBack = GlobalEventFilter()
         self.__callBack.regListener_InputMethod( lambda event : self.__codeTextWidget.insertStr(event.commitString()) )
         self.__callBack.regListener_FocusIn( self.__codeTextWidget.setCursorFocusOn )
-        app.installEventFilter( self.__callBack )
+        QtWidgets.qApp.installEventFilter( self.__callBack )
     
-
 
     def __initData(self):
         self.__codeTextWidget = CodeTextEditWidget(self)
@@ -99,8 +98,8 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     
     mce = MyCodeEditor()
-    with codecs.open( '../tmp/temp3.txt','r','utf-8' ) as templateFileObj:
-    #with codecs.open( 'CodeTextEditWidget.py','r','utf-8' ) as templateFileObj:
+    #with codecs.open( '../tmp/temp3.txt','r','utf-8' ) as templateFileObj:
+    with codecs.open( 'CodeTextEditWidget.py','r','utf-8' ) as templateFileObj:
         fileStr = templateFileObj.read()
         mce.setText(fileStr)
     mce.show()

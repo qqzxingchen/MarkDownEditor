@@ -104,8 +104,8 @@ class OperateCache:
     def addRecord(self,operate):
         self.__curRecordList.append(operate)
     
-    def addRecords(self,*operates):
-        self.pushOperates( list( operates ) )
+    def addRecords(self,operates):
+        self.pushOperates( operates )
     
 
     def clearOperates(self):
@@ -158,12 +158,7 @@ class OperateCache:
 if __name__ == '__main__':
     
     oc = OperateCache()
-    oc.startRecord()
-    oc.addRecord(1)
-    oc.addRecord(2)
-    oc.addRecord(3)
-    oc.endRecord()
-    oc.addRecords(1,2,3,4,5)
+
     
     print (oc._OperateCache__operates)
     

@@ -6,66 +6,12 @@ from PyQt5.QtWidgets import QWidget
 
 from CodeEditor.TextDocument import TextDocument
 from CodeEditor.TextCursor import TextCursor
-from CodeEditor.CodeEditorGlobalDefines import CodeEditorGlobalDefines as CEGD
+from CodeEditor.LineNumberWidget import LineNumberWidget
+from CodeEditor.CodeEditorGlobalDefines import CodeEditorGlobalDefines as CEGD,GlobalClipBorard
 from CodeEditor.FrequentlyUsedFunc import FrequentlyUsedFunc as FUF
 from CodeEditor.EditorSettings import EditorSettings
 
-
-
-class __LineNumberWidget__(QWidget):
-    
-    def setVisibleLineYOffInfoArray(self,visibleLineYOffInfoArray):
-        if self.visibleLineYOffInfoArray != visibleLineYOffInfoArray:
-            self.visibleLineYOffInfoArray = visibleLineYOffInfoArray
-            self.update()
-    
-    
-    def __init__(self,editorSettingObj,parent):
-        QWidget.__init__(self,parent)
-        self.getSettings = lambda : editorSettingObj
-        self.__initData()
-                
-        self.visibleLineYOffInfoArray = None
-        
-    def __initData(self):
-        for funcName in EditorSettings.getFuncNames:
-            setattr(self, funcName, getattr(self.getSettings(), funcName) )
-            
-        self.getSettings().lineTextLeftXOffChangedSignal.connect( self.__onLeftXOffChanged )
-        self.getSettings().lineNumberRightXOffChangedSignal.connect(lambda v: self.update())
-        self.getSettings().fontChangedSignal.connect(lambda v: self.update())
-        self.getSettings().startDisLineNumberChangedSignal.connect(lambda v: self.update())
-        
-    def __onLeftXOffChanged(self,newLeftXOff):
-        self.resize( newLeftXOff,self.height() )
-        
-    def paintEvent(self, event):
-        painter = QtGui.QPainter(self)
-        painter.setFont(self.getFont())
-        painter.setPen(QtCore.Qt.NoPen)
-        painter.setBrush(CEGD.WhiteOpaqueBrush)
-        #painter.drawRect(0,0,self.width(),self.height())
-
-        painter.save()
-        self.__drawLineNumber(painter)
-        painter.restore()
-
-
-    # 绘制行号
-    def __drawLineNumber(self,painter):
-        if self.visibleLineYOffInfoArray == None:
-            return
-        
-        painter.setPen(CEGD.LineNumberPen)   
-        for item in self.visibleLineYOffInfoArray:
-            curY = item['lineYOff']
-            index = item['lineIndex']
-            lineNumberRect = painter.boundingRect( 0,curY,0,0,0,str(index+1) )
-            lineNumberRect.moveRight( self.getLineNumberRightXOff() - lineNumberRect.x() )
-            painter.drawText( lineNumberRect,0,str(index+1) )
-
-
-
+from CodeEditor.CustomVersion.Python3Version.PythonTextDocument import PythonTextDocument
 
 class CodeTextEditWidget(QWidget):
     # 当文本内容发生改变时，该信号将会被发射
@@ -73,8 +19,8 @@ class CodeTextEditWidget(QWidget):
     
     # 当按下Ctrl+字母键时，onQuickCtrlKey被发射
     # 当按下Alt+字母键时，onQuickAltKey被发射
-    onQuickCtrlKey = QtCore.pyqtSignal( QtCore.Qt.Key )
-    onQuickAltKey = QtCore.pyqtSignal( QtCore.Qt.Key )
+    onQuickCtrlKeySignal = QtCore.pyqtSignal( QtCore.Qt.Key )
+    onQuickAltKeySignal = QtCore.pyqtSignal( QtCore.Qt.Key )
 
 
 
@@ -146,17 +92,53 @@ class CodeTextEditWidget(QWidget):
         self.setCursor( QtCore.Qt.IBeamCursor )
         self.__lineNumberWidget.setCursor( QtCore.Qt.ArrowCursor )
         
+        self.onQuickCtrlKeySignal.connect(self.onQuickCtrlKey)
         
-        self.onQuickCtrlKey.connect(self.temp)
-    def temp(self,key):
-        if key == QtCore.Qt.Key_Z:
-            self.__textDocument.redoOneStep()
-            cursorIndexPos = self.__textCursor.getCursorIndexPos()
-            if self.__textDocument.isIndexPosValid(cursorIndexPos) == False:
-                self.__textCursor.setGlobalCursorPos( self.__textDocument.formatIndexPos(cursorIndexPos) )
-            self.clearSelectText(False)
+    def onQuickCtrlKey(self,key):
+        off = key - QtCore.Qt.Key_A
+        if (off >= 0) and (off <= 25):
+            funcName = 'CTRL_%s' % chr( ord('A')+off ) 
+            if hasattr(self, funcName):
+                getattr(self, funcName)()
+    
+    def CTRL_Z(self):
+        self.__textDocument.redoOneStep()
+        cursorIndexPos = self.__textCursor.getCursorIndexPos()
+        if self.__textDocument.isIndexPosValid(cursorIndexPos) == False:
+            self.__textCursor.setGlobalCursorPos( self.__textDocument.formatIndexPos(cursorIndexPos) )
+        self.clearSelectText(False)
+        self.update()
+        
+    def CTRL_V(self):
+        curData = GlobalClipBorard().getData()
+        if isinstance(curData,str):
+            self.insertStr( curData )
             self.update()
         
+    def CTRL_X(self):
+        self.CTRL_C()
+        self.deleteSelectText(True)
+
+    def CTRL_C(self):
+        selectedIndexPoss = self.getSelectTextByIndexPos()
+        if selectedIndexPoss == None:
+            return
+        
+        retuDict = FUF.sortedIndexPos(selectedIndexPoss[0], selectedIndexPoss[1])
+        start = retuDict['first']
+        end = retuDict['second']
+        
+        if start[1] == end[1]:
+            textData = self.__textDocument.getLineTextByIndex(start[1])[start[0]:end[0]]
+        else:        
+            textData = self.__textDocument.getLineTextByIndex(start[1])[start[0]:]
+            for index in range( start[1]+1,end[1] ):
+                textData += self.__textDocument.getSplitedChar() + self.__textDocument.getLineTextByIndex(index)
+            textData += self.__textDocument.getSplitedChar() + self.__textDocument.getLineTextByIndex(end[1])[0:end[0]]
+        GlobalClipBorard().setData( textData )
+        
+    
+    
         
     
     def __initData(self):
@@ -165,10 +147,11 @@ class CodeTextEditWidget(QWidget):
         for funcName in EditorSettings.getFuncNames + EditorSettings.setFuncNames + EditorSettings.signalNames:
             setattr(self, funcName, getattr(self.__settings, funcName) )
         
-        self.__lineNumberWidget = __LineNumberWidget__(self.__settings,self)
+        self.__lineNumberWidget = LineNumberWidget(self.__settings,self)
         self.__lineNumberWidget.setGeometry( 0,0,self.getLineTextLeftXOff(),self.height() )
     
-        self.__textDocument = TextDocument()
+        #self.__textDocument = TextDocument()
+        self.__textDocument = PythonTextDocument()      # 当前只是做测试使用
         self.__textDocument.setFont(self.getFont(),self.getFontMetrics())
         
         self.__textCursor = TextCursor(self)
@@ -327,19 +310,21 @@ class CodeTextEditWidget(QWidget):
         self.update()
     
     def __onDisplayCharKey(self,event):
+        self.deleteSelectText(False)
         indexPos = self.__textDocument.insertText(self.__textCursor.getCursorIndexPos(), event.text())
         self.__textCursor.setGlobalCursorPos(indexPos)
         self.update()
     
     def __onDisplayLetterKey(self,event):
-        if (FUF.hasModifier(event.modifiers()) == False) or (FUF.onlyShiftModifier(event.modifiers()) == True):        
+        if (FUF.hasModifier(event.modifiers()) == False) or (FUF.onlyShiftModifier(event.modifiers()) == True):
+            self.deleteSelectText(False)     
             indexPos = self.__textDocument.insertText(self.__textCursor.getCursorIndexPos(), event.text())
             self.__textCursor.setGlobalCursorPos(indexPos)
             self.update()
         elif FUF.onlyCtrlModifier(event.modifiers()):
-            self.onQuickCtrlKey.emit(event.key())
+            self.onQuickCtrlKeySignal.emit(event.key())
         elif FUF.onlyAltModifier(event.modifiers()):
-            self.onQuickAltKey.emit(event.key())
+            self.onQuickAltKeySignal.emit(event.key())
         
     
     def __onEnterKey(self,event):
@@ -377,7 +362,7 @@ class CodeTextEditWidget(QWidget):
             
         self.update()
     
-    
+
     def __onPageKey(self,event):
         if FUF.hasModifier(event.modifiers()) == False:
             if event.key() == QtCore.Qt.Key_PageUp:
@@ -457,9 +442,7 @@ class CodeTextEditWidget(QWidget):
         elif FUF.isEventKeyIsHomeEndKey(event.key()):
             self.__onHomeEndKey(event)
 
-
         self.__textDocument.endRecord()
-
 
 
 
@@ -473,9 +456,12 @@ class CodeTextEditWidget(QWidget):
     def insertStr(self,text):
         if len(text) == 0:
             return
+        
         self.__textDocument.startRecord()
+        self.deleteSelectText(False)
         indexPos = self.__textDocument.insertText(self.__textCursor.getCursorIndexPos(),text)  
         self.__textDocument.endRecord()
+
         self.__textCursor.setGlobalCursorPos(indexPos)
         self.update()
     
@@ -555,7 +541,7 @@ class CodeTextEditWidget(QWidget):
     
 
       
-    @FUF.funcExeTime
+    # @FUF.funcExeTime
     def paintEvent(self,event):
         visibleLineYOffInfoArray = self.__calcAnyVisibleYOff()
         self.__lineNumberWidget.setVisibleLineYOffInfoArray(visibleLineYOffInfoArray)
@@ -684,18 +670,17 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
 
     mce = CodeTextEditWidget()
-    #with codecs.open( '../tmp/temp2.txt','r','utf-8' ) as templateFileObj:
-    with codecs.open( 'CodeTextEditWidget.py','r','utf-8' ) as templateFileObj:
-    
-        fileStr = templateFileObj.read()
-        mce.setText( fileStr )
     mce.show()
     mce.resize( QtCore.QSize( 600,400 ) )
+
+    #with codecs.open( '../tmp/temp2.txt','r','utf-8' ) as templateFileObj:
+    with codecs.open( 'CodeTextEditWidget.py','r','utf-8' ) as templateFileObj:
+    #with codecs.open( '../tmp/strtemp.txt','r','utf-8' ) as templateFileObj:
+        fileStr = templateFileObj.read()
+        mce.setText( fileStr )
     
-    mce.onQuickAltKey.connect(lambda k : print( 'alt',chr(k) ))
-    mce.onQuickCtrlKey.connect(lambda k : print( 'ctrl',chr(k) ))
-    
-    
+    mce.onQuickAltKeySignal.connect(lambda k : print( 'alt',chr(k) ))
+        
     
     sys.exit( app.exec_() )
 

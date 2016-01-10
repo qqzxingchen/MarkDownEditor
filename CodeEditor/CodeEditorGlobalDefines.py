@@ -1,10 +1,22 @@
 
 
-from PyQt5 import QtGui, QtCore
+from PyQt5 import QtGui, QtCore, QtWidgets
+
+
+# 负责剪切板管理
+class GlobalClipBorard(object):
+    def __new__(cls,*args,**kwargs):
+        if not hasattr(cls,'_instance'):
+            cls._instance = super(GlobalClipBorard,cls).__new__(cls,*args,**kwargs)
+        return cls._instance
+
+    getData = lambda self : QtWidgets.QApplication.clipboard().text()
+    setData = lambda self,data : QtWidgets.QApplication.clipboard().setText( data )        
 
 
 
 class CodeEditorGlobalDefines:
+    
     
     CharDistancePixel = 1       # 同一行相邻两个字符之间的像素间隔
     TextYOff = 4                # 编辑器文本距离上边的距离
@@ -19,7 +31,7 @@ class CodeEditorGlobalDefines:
     # 特定画笔    
     LineNumberPen = QtGui.QPen( QtGui.QColor( 255,0,0 ) )       # 绘制行文本的QPen
     LineTextPen = QtGui.QPen( QtGui.QColor( 0,0,0 ) )           # 绘制行字符串的QPen
-    
+
     TextTokenPen = QtGui.QPen( QtGui.QColor( 0,0,255 ) )        # 关键字高亮时用的绘制画笔    
     ExplainNotePen = QtGui.QPen( QtGui.QColor( 192,192,192 ) )  # 注释文本使用的画笔
     StrTextPen = QtGui.QPen( QtGui.QColor( 0,170,0 ) )          # 单引号、双引号、三引号内部文本使用的画笔
@@ -30,12 +42,16 @@ class CodeEditorGlobalDefines:
     
     
     # 特定画刷
-    LineSelectedBKBrush = QtGui.QBrush( QtGui.QColor( 100,200,0,100 ),QtCore.Qt.SolidPattern )      # 绘制输入焦点所在行的行背景画刷
-    LineUnSelectedBKBrush = QtGui.QBrush( QtGui.QColor( 100,200,0,100 ),QtCore.Qt.NoBrush )
+    LineSelectedBKBrush = QtGui.QBrush( QtGui.QColor( 64,144,240,32 ),QtCore.Qt.SolidPattern )      # 绘制输入焦点所在行的行背景画刷
+    LineUnSelectedBKBrush = QtGui.QBrush( QtGui.QColor( 0,0,0,100 ),QtCore.Qt.NoBrush )
     
-    TextSelectedBKBrush = QtGui.QBrush( QtGui.QColor( 200,100,0,150 ),QtCore.Qt.SolidPattern )      # 选中文本高亮时用的背景画刷
+    TextSelectedBKBrush = QtGui.QBrush( QtGui.QColor( 200,100,0,100 ),QtCore.Qt.SolidPattern )      # 选中文本高亮时用的背景画刷
 
     
+
+
+
+
 
 
 
@@ -52,10 +68,10 @@ class GlobalEventFilter(QtCore.QObject):
             funcObjArr = self.__funcObjs__InputMethod
         elif event.type() == QtCore.QEvent.FocusIn:
             funcObjArr = self.__funcObjs__FocusIn
-        
+
         for funcObjs in funcObjArr:
             funcObjs(event)
-
+        
         return QtCore.QObject.eventFilter(self, obj, event)
 
     

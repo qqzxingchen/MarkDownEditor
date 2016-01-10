@@ -1,21 +1,35 @@
 
-import re,keyword
+import re
 from PyQt5 import QtCore,QtGui
 from CodeEditor.CodeEditorGlobalDefines import CodeEditorGlobalDefines as CEGD
 from CodeEditor.FrequentlyUsedFunc import FrequentlyUsedFunc as FUF
 from CodeEditor.OperateCache import OperateCache, OperateRecord
+from CodeEditor.RetuInfo import RetuInfo
 
 
 '''
 TextDocument.__lineTextInfoDictArray的注释信息
 一个Array，其中的每项都是一个dict，称为lineTextInfoDict，它的格式是：
 lineTextInfoDict['lineText']                     一个字符串，该行文本的字符串
+lineTextInfoDict['descAndStrInfo']            一个数组，该行文本内单引号（包括三个单引号这种）、双引号、#符号的位置
 lineTextInfoDict['normalLineTextPixmap']         一个QPixmap对象，绘制对应行文本时，就把这个pixmap绘制到界面上（原始图片）
 lineTextInfoDict['charWidthArray']               绘制到QPixmap对象上时，每个字符的字符宽度（像素数）
 '''
 
 # 主要负责进行文本的绘制工作相关
 class __BaseDocument__(QtCore.QObject):
+
+    userChangeTextSignal = QtCore.pyqtSignal()
+
+    LINE_TEXT_STR = 'lineText'
+    CHAR_WIDTH_ARRAY = 'charWidthArray'
+    NORMAL_LINE_PIXMAP = 'normalLineTextPixmap'
+    DESC_STR_INDEXPOS_ARRAY = 'descAndStrInfo'
+    
+    UnvisibleCharSearcher = re.compile('[\s]{1,}')
+    WordSearcher = re.compile('[0-9a-zA-Z]{1,}')
+    ChineseSearcher = re.compile(u'[\u4e00-\u9fa5]+')
+    Searchers = [UnvisibleCharSearcher,WordSearcher,ChineseSearcher]
 
     def setFont(self,fontObj,fontMetrics = None):
         self.__font = fontObj
@@ -33,8 +47,12 @@ class __BaseDocument__(QtCore.QObject):
         return self.__font
     def getFontMetrics(self):
         return self.__fontMetrics
+    def getChineseCharFont(self):
+        return self.__chineseCharFont
+
     
-    
+    def refreshLineMaxWidth(self,lineWidth):
+        self.__lineMaxWidth = max( [ self.__lineMaxWidth,lineWidth ] )
     def getMaxLineWidth(self):
         return self.__lineMaxWidth
     def getLineCount(self):
@@ -49,8 +67,9 @@ class __BaseDocument__(QtCore.QObject):
         self.__lineTextInfoDictArray = []
         self.__lineMaxWidth = 0
         for text in retuDict['splitedTexts']:
-            self.__lineTextInfoDictArray.append({TextDocument.LINE_TEXT_STR:text})
-            
+            self.__lineTextInfoDictArray.append({__BaseDocument__.LINE_TEXT_STR:text})
+        self.userChangeTextSignal.emit()
+        
     def getText(self):
         return self.__text
     def getSplitedChar(self):
@@ -68,11 +87,8 @@ class __BaseDocument__(QtCore.QObject):
         self.setFont( font )
 
     
-    
-    
-    
     def isLineIndexValid(self,index):
-        if (index < 0) or (index >= len(self.__lineTextInfoDictArray)):
+        if (index < 0) or (index >= self.getLineCount()):
             return False
         else:
             return True
@@ -80,74 +96,96 @@ class __BaseDocument__(QtCore.QObject):
     def changeLineText(self,lineIndex,newText):
         if self.isLineIndexValid(lineIndex) == False:
             return False
-        self.__lineTextInfoDictArray[lineIndex] = {TextDocument.LINE_TEXT_STR:newText}
+        self.__lineTextInfoDictArray[lineIndex] = {__BaseDocument__.LINE_TEXT_STR:newText}
         return True
         
     def delLine(self,lineIndex):
         if self.isLineIndexValid(lineIndex) == False:
             return False
         self.__lineTextInfoDictArray.remove( self.__lineTextInfoDictArray[lineIndex] )
-        if len(self.__lineTextInfoDictArray) == 0:
-            self.__lineTextInfoDictArray.append( {TextDocument.LINE_TEXT_STR:''} )            
+        if self.getLineCount() == 0:
+            self.__lineTextInfoDictArray.append( {__BaseDocument__.LINE_TEXT_STR:''} )            
         return True
     
-    # 文本将会把newText插入到lineIndex之前，使newText称为新的第lineIndex号元素
+    # 文本将会把newText插入到lineIndex之前，使newText成为新的第lineIndex号元素
     def addLine(self,lineIndex,newText):
         if lineIndex < 0:
             return False
-        self.__lineTextInfoDictArray.insert(lineIndex, {TextDocument.LINE_TEXT_STR:newText})
+        self.__lineTextInfoDictArray.insert(lineIndex, {__BaseDocument__.LINE_TEXT_STR:newText})
         return True
     
-    def clearLineTextInfoDict(self,index):
-        if self.isLineIndexValid(index) == False:
-            return False
-        self.__lineTextInfoDictArray[index] = {TextDocument.LINE_TEXT_STR:self.__lineTextInfoDictArray[index][TextDocument.LINE_TEXT_STR]}
-        return True
-    
-    def setLineTextInfoDict(self,index,charWidthArray,normalLineTextPixmap,lineWidth = None):
-        if self.isLineIndexValid(index) == False:
-            return False
-        self.__lineTextInfoDictArray[index][TextDocument.CHAR_WIDTH_ARRAY] = charWidthArray
-        self.__lineTextInfoDictArray[index][TextDocument.NORMAL_LINE_PIXMAP] = normalLineTextPixmap 
-        if lineWidth != None:
-            self.__lineMaxWidth = max( [ self.__lineMaxWidth,lineWidth ] )
-        return True
-    
-    # 以下几个方法的参数outOfIndexValue，是指当传入的index越限时，将会返回的值
     # 获取某行的文本
     def getLineTextByIndex(self,index,outOfIndexValue=None):
         if self.isLineIndexValid(index) == False:
             return outOfIndexValue 
-        return self.__lineTextInfoDictArray[index][TextDocument.LINE_TEXT_STR]
-
+        return self.__lineTextInfoDictArray[index][__BaseDocument__.LINE_TEXT_STR]
+    
+    
+    
+    
+    # 绘制该行文本时部分数据的操作
+    def clearLineTextInfoDict(self,index):
+        if self.isLineIndexValid(index) == False:
+            return False
+        self.__lineTextInfoDictArray[index] = {__BaseDocument__.LINE_TEXT_STR:self.getLineTextByIndex(index)}
+        return True
+    
+    def setLineTextInfo(self,index,key,value):
+        if self.isLineIndexValid(index) == False:
+            return False
+        if key == __BaseDocument__.LINE_TEXT_STR:
+            return False
+        self.__lineTextInfoDictArray[index][key] = value
+        return True
+    
+    
+    
+    
+    # 以下几个方法的参数outOfIndexValue，是指当传入的index越限时，将会返回的值
     def getCharWidthArrayByIndex(self,index,outOfIndexValue=None):
         if self.isLineIndexValid(index) == False:
             return outOfIndexValue
-        if self.__lineTextInfoDictArray[index].get(TextDocument.CHAR_WIDTH_ARRAY) == None:
+        if self.__lineTextInfoDictArray[index].get(__BaseDocument__.CHAR_WIDTH_ARRAY) == None:
             self.__refreshLineTextInfoDictByIndex(index)
-        return self.__lineTextInfoDictArray[index][TextDocument.CHAR_WIDTH_ARRAY]
+        return self.__lineTextInfoDictArray[index][__BaseDocument__.CHAR_WIDTH_ARRAY]
 
     def getNormalLineTextPixmapByIndex(self,index,outOfIndexValue=None):
         if self.isLineIndexValid(index) == False:
             return outOfIndexValue
-        if self.__lineTextInfoDictArray[index].get(TextDocument.NORMAL_LINE_PIXMAP) == None:
+        if self.__lineTextInfoDictArray[index].get(__BaseDocument__.NORMAL_LINE_PIXMAP) == None:
             self.__refreshLineTextInfoDictByIndex(index)
-        return self.__lineTextInfoDictArray[index][TextDocument.NORMAL_LINE_PIXMAP]
+        return self.__lineTextInfoDictArray[index][__BaseDocument__.NORMAL_LINE_PIXMAP]
 
+    def getStrAndDescIndexPossByIndex(self,index,outOfIndexValue=None):
+        if self.isLineIndexValid(index) == False:
+            return outOfIndexValue
+        if self.__lineTextInfoDictArray[index].get(__BaseDocument__.DESC_STR_INDEXPOS_ARRAY) == None:
+            self.__findLineDescAndStrPosInfo(index)
+        return self.__lineTextInfoDictArray[index][__BaseDocument__.DESC_STR_INDEXPOS_ARRAY]
+        
     def getLineTextInfoDictByIndex(self,index,outOfIndexValue=None):
         if self.isLineIndexValid(index) == False:
             return outOfIndexValue
-        if self.__lineTextInfoDictArray[index].get(TextDocument.NORMAL_LINE_PIXMAP) == None:
+        if self.__lineTextInfoDictArray[index].get(__BaseDocument__.NORMAL_LINE_PIXMAP) == None:
             self.__refreshLineTextInfoDictByIndex(index)
+        if self.__lineTextInfoDictArray[index].get(__BaseDocument__.DESC_STR_INDEXPOS_ARRAY) == None:
+            self.__findLineDescAndStrPosInfo(index)
         return self.__lineTextInfoDictArray[index]    
 
+
+    # 根据指定的lineIndex，找到该行中包含的 # 、 连续的 ' 、 连续的 " 的位置
+    def __findLineDescAndStrPosInfo(self,lineIndex):
+        arr = self.generateDescAndStrIndexPoss(lineIndex)
+        if arr == None:
+            arr = []
+        self.setLineTextInfo(lineIndex, __BaseDocument__.DESC_STR_INDEXPOS_ARRAY,arr )
 
     # 根据当前最新的文本，来重绘文本信息Dict
     # @FUF.funcExeTime
     def __refreshLineTextInfoDictByIndex(self,index):
         lineHeight = self.__fontMetrics.lineSpacing()        
         curLineText = self.getLineTextByIndex(index)
-        charMatchedSettings = self.findCharMatchedSettings(curLineText,index)
+        charMatchedSettings = self.generateCharMatchedSettings(index)
 
         pixmapObj = QtGui.QPixmap(len(curLineText)*( CEGD.CharDistancePixel + self.__fontMetrics.maxWidth() * 2 ),lineHeight)
         pixmapObj.fill(QtGui.QColor(255,255,255,0))
@@ -169,7 +207,9 @@ class __BaseDocument__(QtCore.QObject):
         del painter   # 删除当前的painter，才能继续为pixmap创建新的画笔并绘制
         
         # 最大宽度需要减掉最后一个字符导致的字符长度增长，这样可以保证即使用户把滚动条拉倒最右边，也有字符显示出来
-        self.setLineTextInfoDict(index, charWidthInfoArr, pixmapObj,curXOff - letterRect.width())
+        self.setLineTextInfo(index, __BaseDocument__.CHAR_WIDTH_ARRAY, charWidthInfoArr)
+        self.setLineTextInfo(index, __BaseDocument__.NORMAL_LINE_PIXMAP, pixmapObj)
+        self.refreshLineMaxWidth( curXOff - letterRect.width() )
 
 
     # 根据matchedPenAndInfo中的信息，更新painter的QFont和QPen
@@ -189,44 +229,26 @@ class __BaseDocument__(QtCore.QObject):
     #     retuList(list)，它要满足以下要求
     #         长度与lineStr的长度相同
     #         list的每项都为一个Tuple，格式为： ( QPenObj,QFontObj )
-    def findCharMatchedSettings(self,lineStr,lineIndex):
+    def generateCharMatchedSettings(self,lineIndex):
         arr = []
-        for c in lineStr:
-            if FUF.isChineseChar(c):
-                arr.append( (CEGD.LineTextPen,self.__chineseCharFont) )
-            else:
-                arr.append( (CEGD.LineTextPen,self.__font) )
-        return arr
+        for c in self.getLineTextByIndex(lineIndex):
+            arr.append( (CEGD.LineTextPen,self.getChineseCharFont() if FUF.isChineseChar(c) else self.getFont() ) )
+        return arr        
 
-
-
-
-
-
-
-
-
-
-
+    # 作为一个代码编辑器，文本高亮是必备的。因此，区分位于注释内、位于字符串内的代码语句块是很有必要的
+    # 当前的实现方法是，每行文本内容改变时，都将会重新生成该行文本内 注释关键字(python中是#)、字符串边界关键字(python中包括：' " ''' """)在该行中的位置
+    #     然后当用户的一步操作之后（可能多行文本都发生了改变），将会根据该行文本内关键字的位置，重新生成 注释、字符串的边界的IndexPos范围
+    #     注意：该函数在实现时，是lazy的，也就是说，除非有人调用 self.getStrAndDescIndexPossByIndex、self.getLineTextInfoDictByIndex，否则该函数不会被调用
+    # 如果要适配于其它语言，则可能不需要缓存每行的这些位置，也即根本就不需要重写该函数
+    # 返回值：
+    #     默认是空的list（[]）
+    #     如果重写了该函数，那么为了利用它，一般也需要重写afterUserOperate函数
+    def generateDescAndStrIndexPoss(self,lineIndex):
+        return []
 
 
 
 class TextDocument(__BaseDocument__):
-
-    lineTextChangedSignal = QtCore.pyqtSignal()
-
-    LINE_TEXT_STR = 'lineText'
-    CHAR_WIDTH_ARRAY = 'charWidthArray'
-    NORMAL_LINE_PIXMAP = 'normalLineTextPixmap'
-
-    UnvisibleCharSearcher = re.compile('[\s]{1,}')
-    WordSearcher = re.compile('[0-9a-zA-Z]{1,}')
-    ChineseSearcher = re.compile(u'[\u4e00-\u9fa5]+')
-    Searchers = [UnvisibleCharSearcher,WordSearcher,ChineseSearcher]
-
-
-        
-
     
     # 设当前行内容为lineText，当前光标的xIndexPos为curIndex（表示光标位置向左查，有curIndex个字符）
     # 该函数将会返回一个int值，该值为光标新位置距离旧位置的偏移。该位置恒为正
@@ -247,18 +269,6 @@ class TextDocument(__BaseDocument__):
         l.reverse()
         return TextDocument.skipSpaceAndWordByRight( ''.join(l) , len(lineText)-curIndex)
 
-    # 文本改变装饰器（如果某函数的执行将会修改某行的文本，则需要使用该装饰器进行装饰）
-    @staticmethod
-    def __TextChangedDecorator(funcObj):
-        def _deco(*arg1,**arg2):
-            retuValue = funcObj(*arg1,**arg2)
-            getattr(funcObj, '__self__').lineTextChangedSignal.emit()     # 已与对象绑定的函数会有一个属性__self__，它将标示已绑定的对象
-            return retuValue
-        return _deco
-
-    def setText(self,text = ''):
-        __BaseDocument__.setText(self, text)
-        self.lineTextChangedSignal.emit()
 
 
     def __init__(self,font=QtGui.QFont('Consolas',11) ,parent=None):
@@ -268,51 +278,6 @@ class TextDocument(__BaseDocument__):
         self.__operateCache = OperateCache()
         for funcName in OperateCache.funcNames:
             setattr(self, funcName, getattr(self.__operateCache, funcName))
-        
-        # 当它们执行时，将会修改文本的内容。因此使用TextDocument.__TextChangedDecorator进行装饰，来响应文本的改动，并简化了代码
-        # 注意，不能直接在insertText函数上直接@TextDocument.__TextChangedDecorator
-        # 因为python解释器在生成TextDocument类的过程中，遇到insertText函数时将无法解析@TextDocument.__TextChangedDecorator（因为此时TextDocument还未产生）
-        self.insertText = TextDocument.__TextChangedDecorator(self.insertText)
-        self.deleteText = TextDocument.__TextChangedDecorator(self.deleteText)
-        
-        self.lineTextChangedSignal.connect(self.afterLineTextChanged)
-
-
-
-
-    def findCharMatchedSettings(self,lineStr,lineIndex):
-        retuArr = []
-        arr = len(lineStr) * [0]
-        
-        for metaObj in re.finditer( r'\b[a-zA-Z]+\b' , lineStr):
-            if keyword.kwlist.count( lineStr[metaObj.span()[0]:metaObj.span()[1]] ) != 0:
-                for index in range( metaObj.span()[0],metaObj.span()[1] ):
-                    arr[index] = 1
-        for index in range(len(arr)):
-            if arr[index] == 0:
-                retuArr.append( ( CEGD.LineTextPen,self.getFont() ) )
-            else:
-                retuArr.append( ( CEGD.TextTokenPen,self.getFont() ) )
-        return retuArr
-    
-        keyword.kwlist
-        
-
-                
-        
-
-
-
-    # @FUF.funcExeTime
-    def afterLineTextChanged(self):
-        #print ('changed')
-        return 
-        text = ''
-        for index in range(self.getLineCount()):
-            text += self.getLineTextByIndex(index) + self.getSplitedChar()
-        self.__text = text
-        print (re.findall( '\'\'\'' , text, re.MULTILINE))
-
 
 
     def redoOneStep(self):
@@ -330,73 +295,97 @@ class TextDocument(__BaseDocument__):
     
 
 
+    # 插删字符串操作对外的接口
+    def insertText(self,xyIndexPosTuple,text,record = True):
+        retuDict = self.__insertText(xyIndexPosTuple, text)
+        
+        if record == True:
+            for r in retuDict['operateRecords']:
+                self.addRecord( r )
+        
+        self.userChangeTextSignal.emit()
+        
+        return retuDict['indexPos']
 
+    def deleteText(self,xyIndexPosTuple,length,record = True):
+        retuDict = self.__deleteText(xyIndexPosTuple, length)
+        
+        if record == True:
+            for r in retuDict['operateRecords']:
+                self.addRecord( r )
 
+        self.userChangeTextSignal.emit()
 
-
+        return retuDict['indexPos']
 
         
 
-    def insertText(self,xyIndexPosTuple,text,record = True):
+    def __insertText(self,xyIndexPosTuple,text):
         splitedTexts = FUF.splitTextToLines(text)['splitedTexts']
         indexPos = xyIndexPosTuple
+        operateRecords = []
+        
         for index in range(len( splitedTexts )-1):
-            indexPos = self.__insertTextWithoutLineBreak( indexPos , splitedTexts[index], record)
-            indexPos = self.__insertLineBreak( indexPos , record)
-        return self.__insertTextWithoutLineBreak( indexPos , splitedTexts[-1], record)
-
+            retuDict = self.__insertTextWithoutLineBreak( indexPos , splitedTexts[index])
+            indexPos = retuDict['newXYIndexPos']
+            operateRecords.append( retuDict['operateRecord'] )
+            
+            retuDict = self.__insertLineBreak( indexPos)
+            indexPos = retuDict['newXYIndexPos']
+            operateRecords.append( retuDict['operateRecord'] )
+        
+        retuDict = self.__insertTextWithoutLineBreak( indexPos , splitedTexts[-1])
+        indexPos = retuDict['newXYIndexPos']
+        operateRecords.append( retuDict['operateRecord'] )
+        
+        return RetuInfo.info( indexPos = indexPos,operateRecords = operateRecords )
 
     # 插入一个换行符
-    def __insertLineBreak(self,xyIndexPosTuple,record = True):
+    def __insertLineBreak(self,xyIndexPosTuple):
         xPos,yPos = xyIndexPosTuple
         curLineText = self.getLineTextByIndex(yPos)
         self.changeLineText(yPos,curLineText[0:xPos] )
         self.addLine( yPos + 1,curLineText[xPos:len(curLineText)] )
         
-        # 记录操作
-        if record == True:
-            self.addRecord( OperateRecord.deleteText( (len(curLineText),yPos),1 ) )
-        
-        return (0,yPos+1)
-        
+        newXYIndexPos = (0,yPos+1)
+        operateRecord = OperateRecord.deleteText( (len(curLineText),yPos),1 )
+        return RetuInfo.info( newXYIndexPos=newXYIndexPos,operateRecord=operateRecord )
+
     # 插入一段没有换行符的文本
-    def __insertTextWithoutLineBreak(self,xyIndexPosTuple,text,record = True):        
+    def __insertTextWithoutLineBreak(self,xyIndexPosTuple,text):        
         xPos,yPos = xyIndexPosTuple
         curLineText = self.getLineTextByIndex(yPos)
         self.changeLineText(yPos, curLineText[0:xPos] + text + curLineText[xPos:len(curLineText)])
-        
-        # 记录操作
-        if record == True:
-            self.addRecord( OperateRecord.deleteText( (xPos,yPos),len(text) ) )
-         
-        return ( len(curLineText[0:xPos] + text) ,yPos)
-        
+
+        newXYIndexPos = ( len(curLineText[0:xPos] + text) ,yPos)
+        operateRecord = OperateRecord.deleteText( (xPos,yPos),len(text) )
+        return RetuInfo.info( newXYIndexPos=newXYIndexPos,operateRecord=operateRecord )
+    
     # 从xyPos的位置起向右删掉length长度的字符
-    def deleteText(self,xyIndexPosTuple,length,record = True):
+    def __deleteText(self,xyIndexPosTuple,length):
         xPos,yPos = xyIndexPosTuple
+        operateRecords = []
         
         while len(self.getLineTextByIndex(yPos))-xPos < length:
-            self.__deleteLineBreak(yPos,record)
+            retuRecord = self.__deleteLineBreak(yPos)
+            operateRecords.append( retuRecord )
             length -= 1            
+        
         curLineText = self.getLineTextByIndex(yPos)
         self.changeLineText( yPos,curLineText[0:xPos]+curLineText[xPos+length:len(curLineText)] )
+        operateRecords.append( OperateRecord.insertText( (xPos,yPos),curLineText[xPos:xPos+length] ) )
 
-        if record == True:
-            self.addRecord( OperateRecord.insertText( (xPos,yPos),curLineText[xPos:xPos+length] ) )
-
-        return xyIndexPosTuple
+        return RetuInfo.info( indexPos = xyIndexPosTuple,operateRecords = operateRecords )
 
     # 删掉第lineIndex行的行尾换行符，其实质是将第lineIndex和第lineIndex+1行的文本合并为一行
     # 如果不存在第lineIndex+1行，则什么都不做
-    def __deleteLineBreak(self,lineIndex,record = True):
+    def __deleteLineBreak(self,lineIndex):
         text1 = self.getLineTextByIndex(lineIndex)
         text2 = self.getLineTextByIndex(lineIndex+1,'')
         self.changeLineText(lineIndex, text1+text2)
         self.delLine(lineIndex+1)
     
-        # 记录操作
-        if record == True:
-            self.addRecord( OperateRecord.insertText( (len(text1),lineIndex),self.getSplitedChar() ) )
+        return OperateRecord.insertText( (len(text1),lineIndex),self.getSplitedChar() )
     
     
     
@@ -516,4 +505,17 @@ class TextDocument(__BaseDocument__):
                     return (xPos,yPos)
         else:
             return (xPos,yPos)
-        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
