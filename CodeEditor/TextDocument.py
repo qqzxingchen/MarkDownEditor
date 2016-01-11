@@ -11,7 +11,6 @@ from CodeEditor.RetuInfo import RetuInfo
 TextDocument.__lineTextInfoDictArray的注释信息
 一个Array，其中的每项都是一个dict，称为lineTextInfoDict，它的格式是：
 lineTextInfoDict['lineText']                     一个字符串，该行文本的字符串
-lineTextInfoDict['descAndStrInfo']            一个数组，该行文本内单引号（包括三个单引号这种）、双引号、#符号的位置
 lineTextInfoDict['normalLineTextPixmap']         一个QPixmap对象，绘制对应行文本时，就把这个pixmap绘制到界面上（原始图片）
 lineTextInfoDict['charWidthArray']               绘制到QPixmap对象上时，每个字符的字符宽度（像素数）
 '''
@@ -24,7 +23,6 @@ class __BaseDocument__(QtCore.QObject):
     LINE_TEXT_STR = 'lineText'
     CHAR_WIDTH_ARRAY = 'charWidthArray'
     NORMAL_LINE_PIXMAP = 'normalLineTextPixmap'
-    DESC_STR_INDEXPOS_ARRAY = 'descAndStrInfo'
     
     UnvisibleCharSearcher = re.compile('[\s]{1,}')
     WordSearcher = re.compile('[0-9a-zA-Z]{1,}')
@@ -114,11 +112,6 @@ class __BaseDocument__(QtCore.QObject):
         self.__lineTextInfoDictArray.insert(lineIndex, {__BaseDocument__.LINE_TEXT_STR:newText})
         return True
     
-    # 获取某行的文本
-    def getLineTextByIndex(self,index,outOfIndexValue=None):
-        if self.isLineIndexValid(index) == False:
-            return outOfIndexValue 
-        return self.__lineTextInfoDictArray[index][__BaseDocument__.LINE_TEXT_STR]
     
     
     
@@ -130,6 +123,24 @@ class __BaseDocument__(QtCore.QObject):
         self.__lineTextInfoDictArray[index] = {__BaseDocument__.LINE_TEXT_STR:self.getLineTextByIndex(index)}
         return True
     
+    def clearCharWidthArrayByIndex(self,index):
+        if self.isLineIndexValid(index) == False:
+            return False
+        if self.getLineTextInfo(index,TextDocument.CHAR_WIDTH_ARRAY ) == None:
+            data = None
+        else:
+            data = self.__lineTextInfoDictArray[index].pop(TextDocument.CHAR_WIDTH_ARRAY)
+        return data
+            
+    def clearNormalLineTextPixmapByIndex(self,index):
+        if self.isLineIndexValid(index) == False:
+            return False
+        if self.getLineTextInfo(index,TextDocument.NORMAL_LINE_PIXMAP ) == None:
+            data = None
+        else:
+            data = self.__lineTextInfoDictArray[index].pop(TextDocument.NORMAL_LINE_PIXMAP)
+        return data
+    
     def setLineTextInfo(self,index,key,value):
         if self.isLineIndexValid(index) == False:
             return False
@@ -138,8 +149,18 @@ class __BaseDocument__(QtCore.QObject):
         self.__lineTextInfoDictArray[index][key] = value
         return True
     
+    def getLineTextInfo(self,index,key):
+        if self.isLineIndexValid(index) == False:
+            return None
+        return self.__lineTextInfoDictArray[index].get(key)
+        
     
     
+    # 获取某行的文本
+    def getLineTextByIndex(self,index,outOfIndexValue=None):
+        if self.isLineIndexValid(index) == False:
+            return outOfIndexValue 
+        return self.__lineTextInfoDictArray[index][__BaseDocument__.LINE_TEXT_STR]
     
     # 以下几个方法的参数outOfIndexValue，是指当传入的index越限时，将会返回的值
     def getCharWidthArrayByIndex(self,index,outOfIndexValue=None):
@@ -155,30 +176,16 @@ class __BaseDocument__(QtCore.QObject):
         if self.__lineTextInfoDictArray[index].get(__BaseDocument__.NORMAL_LINE_PIXMAP) == None:
             self.__refreshLineTextInfoDictByIndex(index)
         return self.__lineTextInfoDictArray[index][__BaseDocument__.NORMAL_LINE_PIXMAP]
-
-    def getStrAndDescIndexPossByIndex(self,index,outOfIndexValue=None):
-        if self.isLineIndexValid(index) == False:
-            return outOfIndexValue
-        if self.__lineTextInfoDictArray[index].get(__BaseDocument__.DESC_STR_INDEXPOS_ARRAY) == None:
-            self.__findLineDescAndStrPosInfo(index)
-        return self.__lineTextInfoDictArray[index][__BaseDocument__.DESC_STR_INDEXPOS_ARRAY]
         
     def getLineTextInfoDictByIndex(self,index,outOfIndexValue=None):
         if self.isLineIndexValid(index) == False:
             return outOfIndexValue
         if self.__lineTextInfoDictArray[index].get(__BaseDocument__.NORMAL_LINE_PIXMAP) == None:
             self.__refreshLineTextInfoDictByIndex(index)
-        if self.__lineTextInfoDictArray[index].get(__BaseDocument__.DESC_STR_INDEXPOS_ARRAY) == None:
-            self.__findLineDescAndStrPosInfo(index)
+
         return self.__lineTextInfoDictArray[index]    
 
 
-    # 根据指定的lineIndex，找到该行中包含的 # 、 连续的 ' 、 连续的 " 的位置
-    def __findLineDescAndStrPosInfo(self,lineIndex):
-        arr = self.generateDescAndStrIndexPoss(lineIndex)
-        if arr == None:
-            arr = []
-        self.setLineTextInfo(lineIndex, __BaseDocument__.DESC_STR_INDEXPOS_ARRAY,arr )
 
     # 根据当前最新的文本，来重绘文本信息Dict
     # @FUF.funcExeTime
@@ -235,16 +242,20 @@ class __BaseDocument__(QtCore.QObject):
             arr.append( (CEGD.LineTextPen,self.getChineseCharFont() if FUF.isChineseChar(c) else self.getFont() ) )
         return arr        
 
-    # 作为一个代码编辑器，文本高亮是必备的。因此，区分位于注释内、位于字符串内的代码语句块是很有必要的
-    # 当前的实现方法是，每行文本内容改变时，都将会重新生成该行文本内 注释关键字(python中是#)、字符串边界关键字(python中包括：' " ''' """)在该行中的位置
-    #     然后当用户的一步操作之后（可能多行文本都发生了改变），将会根据该行文本内关键字的位置，重新生成 注释、字符串的边界的IndexPos范围
-    #     注意：该函数在实现时，是lazy的，也就是说，除非有人调用 self.getStrAndDescIndexPossByIndex、self.getLineTextInfoDictByIndex，否则该函数不会被调用
-    # 如果要适配于其它语言，则可能不需要缓存每行的这些位置，也即根本就不需要重写该函数
-    # 返回值：
-    #     默认是空的list（[]）
-    #     如果重写了该函数，那么为了利用它，一般也需要重写afterUserOperate函数
-    def generateDescAndStrIndexPoss(self,lineIndex):
-        return []
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -296,6 +307,7 @@ class TextDocument(__BaseDocument__):
 
 
     # 插删字符串操作对外的接口
+    @FUF.funcExeTime
     def insertText(self,xyIndexPosTuple,text,record = True):
         retuDict = self.__insertText(xyIndexPosTuple, text)
         

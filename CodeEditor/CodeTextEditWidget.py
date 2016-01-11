@@ -14,19 +14,15 @@ from CodeEditor.EditorSettings import EditorSettings
 from CodeEditor.CustomVersion.Python3Version.PythonTextDocument import PythonTextDocument
 
 class CodeTextEditWidget(QWidget):
-    # 当文本内容发生改变时，该信号将会被发射
-    textChangedSignal = QtCore.pyqtSignal( TextDocument)
-    
+
     # 当按下Ctrl+字母键时，onQuickCtrlKey被发射
     # 当按下Alt+字母键时，onQuickAltKey被发射
     onQuickCtrlKeySignal = QtCore.pyqtSignal( QtCore.Qt.Key )
     onQuickAltKeySignal = QtCore.pyqtSignal( QtCore.Qt.Key )
 
 
-
     def setText(self,text):
         self.__textDocument.setText(text)
-        self.textChangedSignal.emit(self.__textDocument)
     def getText(self):
         return self.__textDocument.getText()
 
@@ -87,17 +83,16 @@ class CodeTextEditWidget(QWidget):
     def __init__(self,parent=None):
         QWidget.__init__(self,parent)
         self.__initData()
-        self.setCursorFocusOn = lambda event: self.__textCursor.setFocus(QtCore.Qt.MouseFocusReason)
         
-        self.setCursor( QtCore.Qt.IBeamCursor )
-        self.__lineNumberWidget.setCursor( QtCore.Qt.ArrowCursor )
+        self.setCursorFocusOn = lambda event: self.__textCursor.setFocus(QtCore.Qt.MouseFocusReason)
+        self.document = lambda : self.__textDocument
         
         self.onQuickCtrlKeySignal.connect(self.onQuickCtrlKey)
         
     def onQuickCtrlKey(self,key):
         off = key - QtCore.Qt.Key_A
         if (off >= 0) and (off <= 25):
-            funcName = 'CTRL_%s' % chr( ord('A')+off ) 
+            funcName = 'CTRL_%s' % chr( ord('A')+off )
             if hasattr(self, funcName):
                 getattr(self, funcName)()
     
@@ -147,13 +142,15 @@ class CodeTextEditWidget(QWidget):
         for funcName in EditorSettings.getFuncNames + EditorSettings.setFuncNames + EditorSettings.signalNames:
             setattr(self, funcName, getattr(self.__settings, funcName) )
         
+        self.setCursor( QtCore.Qt.IBeamCursor )        
         self.__lineNumberWidget = LineNumberWidget(self.__settings,self)
         self.__lineNumberWidget.setGeometry( 0,0,self.getLineTextLeftXOff(),self.height() )
+        self.__lineNumberWidget.setCursor( QtCore.Qt.ArrowCursor )
     
         #self.__textDocument = TextDocument()
         self.__textDocument = PythonTextDocument()      # 当前只是做测试使用
         self.__textDocument.setFont(self.getFont(),self.getFontMetrics())
-        
+
         self.__textCursor = TextCursor(self)
         self.__textCursor.cursorPosChangedSignal.connect(self.__onCursorPosChanged)
         self.__textCursor.initPos( (0,0) )
@@ -219,12 +216,12 @@ class CodeTextEditWidget(QWidget):
             self.setUserDataByKey('leftMousePressed',True)
             self.setUserDataByKey('leftMousePressed_curCursor',self.__textCursor.getCursorIndexPos())
         elif event.button() == QtCore.Qt.RightButton:
-            '''
+            
             font = QtGui.QFont( "Consolas",self.getFont().pointSize()+1 )
             font.setBold(True)
             self.setFont(font)
-            '''
-            self.setLineTextLeftXOff( self.getLineTextLeftXOff() + 10 )
+            
+            #self.setLineTextLeftXOff( self.getLineTextLeftXOff() + 10 )
             #self.setLineNumberRightXOff( self.getLineNumberRightXOff() + 10 )
 
     def mouseMoveEvent(self, event):

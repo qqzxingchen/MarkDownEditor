@@ -22,7 +22,7 @@ class MyCodeEditor(QWidget):
 
     def __initData(self):
         self.__codeTextWidget = CodeTextEditWidget(self)
-        self.__codeTextWidget.textChangedSignal.connect(self.__onCodeTextChanged)
+        self.__codeTextWidget.document().userChangeTextSignal.connect(self.__onCodeTextChanged)
         self.__codeTextWidget.lineTextMaxPixelChangedSignal.connect(self.__onLineStrLengthChanged)
         
         # 横纵滚动条
@@ -49,8 +49,8 @@ class MyCodeEditor(QWidget):
             self.__horizontalScrollBar.setValue(hMax)
         
     
-    def __onCodeTextChanged(self,newTextDocument):        
-        vMax = newTextDocument.getLineCount()-1
+    def __onCodeTextChanged(self):        
+        vMax = self.__codeTextWidget.document().getLineCount()-1
         self.__verticalScrollBar.setRange(0,vMax)
         if self.__verticalScrollBar.value() > vMax:
             self.__verticalScrollBar.setValue(vMax)
@@ -101,7 +101,7 @@ if __name__ == "__main__":
     #with codecs.open( '../tmp/temp3.txt','r','utf-8' ) as templateFileObj:
     with codecs.open( 'CodeTextEditWidget.py','r','utf-8' ) as templateFileObj:
         fileStr = templateFileObj.read()
-        mce.setText(fileStr)
+        mce.setText(fileStr*5)
     mce.show()
     mce.resize(600,400)
     
