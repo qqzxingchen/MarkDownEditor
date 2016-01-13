@@ -113,7 +113,11 @@ class CodeTextEditWidget(QWidget):
     def CTRL_X(self):
         self.CTRL_C()
         self.deleteSelectText(True)
-
+    
+    def CTRL_A(self):
+        l = self.__textDocument.getLineCount()-1
+        self.setSelectTextByIndexPos( (0,0) , (len(self.__textDocument.getLineText(l)),l) , True)
+    
     def CTRL_C(self):
         selectedIndexPoss = self.getSelectTextByIndexPos()
         if selectedIndexPoss == None:
@@ -124,12 +128,12 @@ class CodeTextEditWidget(QWidget):
         end = retuDict['second']
         
         if start[1] == end[1]:
-            textData = self.__textDocument.getLineTextByIndex(start[1])[start[0]:end[0]]
+            textData = self.__textDocument.getLineText(start[1])[start[0]:end[0]]
         else:        
-            textData = self.__textDocument.getLineTextByIndex(start[1])[start[0]:]
+            textData = self.__textDocument.getLineText(start[1])[start[0]:]
             for index in range( start[1]+1,end[1] ):
-                textData += self.__textDocument.getSplitedChar() + self.__textDocument.getLineTextByIndex(index)
-            textData += self.__textDocument.getSplitedChar() + self.__textDocument.getLineTextByIndex(end[1])[0:end[0]]
+                textData += self.__textDocument.getSplitedChar() + self.__textDocument.getLineText(index)
+            textData += self.__textDocument.getSplitedChar() + self.__textDocument.getLineText(end[1])[0:end[0]]
         GlobalClipBorard().setData( textData )
         
     
@@ -306,11 +310,13 @@ class CodeTextEditWidget(QWidget):
             self.__textDocument.deleteText(newCursorIndexPos,-distance )
         self.update()
     
+    
     def __onDisplayCharKey(self,event):
         self.deleteSelectText(False)
         indexPos = self.__textDocument.insertText(self.__textCursor.getCursorIndexPos(), event.text())
         self.__textCursor.setGlobalCursorPos(indexPos)
         self.update()
+    
     
     def __onDisplayLetterKey(self,event):
         if (FUF.hasModifier(event.modifiers()) == False) or (FUF.onlyShiftModifier(event.modifiers()) == True):
@@ -328,7 +334,7 @@ class CodeTextEditWidget(QWidget):
         self.deleteSelectText(False)
         
         curCursorPos = self.__textCursor.getCursorIndexPos()
-        cursorLeftText = self.__textDocument.getLineTextByIndex(curCursorPos[1])[0:curCursorPos[0]]
+        cursorLeftText = self.__textDocument.getLineText(curCursorPos[1])[0:curCursorPos[0]]
                 
         unvisibleSearcher = TextDocument.UnvisibleCharSearcher
         matchObj = unvisibleSearcher.match(cursorLeftText)
@@ -386,7 +392,7 @@ class CodeTextEditWidget(QWidget):
             if event.key() == QtCore.Qt.Key_Home:
                 newIndexPos = ( 0,curIndexPos[1] )
             else:
-                newIndexPos = ( len(self.__textDocument.getLineTextByIndex(curIndexPos[1])),curIndexPos[1] )
+                newIndexPos = ( len(self.__textDocument.getLineText(curIndexPos[1])),curIndexPos[1] )
             self.__textCursor.setGlobalCursorPos( newIndexPos )
         else:
             if FUF.onlyCtrlModifier(event.modifiers()):
@@ -396,7 +402,7 @@ class CodeTextEditWidget(QWidget):
                 else:
                     lineIndex = self.__calcMaxStartDisLineNumber()
                     lineCount = self.__textDocument.getLineCount()-1
-                    newIndexPos = ( len(self.__textDocument.getLineTextByIndex(lineCount)),lineCount )
+                    newIndexPos = ( len(self.__textDocument.getLineText(lineCount)),lineCount )
                 self.__textCursor.setGlobalCursorPos( newIndexPos )
                 self.showLineNumberAsTop(lineIndex)
                 
@@ -480,7 +486,7 @@ class CodeTextEditWidget(QWidget):
     def __transGloIndexPosToGloPixelPos(self,xyIndexPosTuple):
         xIndexPos = xyIndexPosTuple[0]
         yIndexPos = xyIndexPosTuple[1]
-        charWidthInfoArr = self.__textDocument.getCharWidthArrayByIndex(yIndexPos)
+        charWidthInfoArr = self.__textDocument.getLineCharWidthArrayByIndex(yIndexPos)
                
         yPixelPos = yIndexPos*self.getFontMetrics().lineSpacing() + CEGD.TextYOff
         xPixelPos = 0
@@ -497,7 +503,7 @@ class CodeTextEditWidget(QWidget):
         if lineIndex > self.__textDocument.getLineCount()-1:
             lineIndex = self.__textDocument.getLineCount()-1
         
-        charWidthArray = self.__textDocument.getCharWidthArrayByIndex(lineIndex)
+        charWidthArray = self.__textDocument.getLineCharWidthArrayByIndex(lineIndex)
                 
         startX = self.getLineTextLeftXOff() - self.getStartDisLetterXOff()
         xIndex = 0
@@ -538,7 +544,6 @@ class CodeTextEditWidget(QWidget):
     
 
       
-    # @FUF.funcExeTime
     def paintEvent(self,event):
         visibleLineYOffInfoArray = self.__calcAnyVisibleYOff()
         self.__lineNumberWidget.setVisibleLineYOffInfoArray(visibleLineYOffInfoArray)
@@ -574,7 +579,8 @@ class CodeTextEditWidget(QWidget):
         for item in visibleLineYOffInfoArray:
             lineYOff = item['lineYOff']
             lineIndex = item['lineIndex']
-            pixmapObj = self.__textDocument.getNormalLineTextPixmapByIndex(lineIndex)
+            pixmapObj = self.__textDocument.getLinePixmapByIndex(lineIndex)
+
             if lineYOff >= redrawRect.y() and lineYOff <= redrawRect.y() + redrawRect.height():            
                 painter.drawPixmap( self.getLineTextLeftXOff() - self.getStartDisLetterXOff() , lineYOff,pixmapObj )
 

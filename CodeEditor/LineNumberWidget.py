@@ -58,4 +58,20 @@ class LineNumberWidget(QWidget):
             index = item['lineIndex']
             lineNumberRect = painter.boundingRect( 0,curY,0,0,0,str(index+1) )
             lineNumberRect.moveRight( self.getLineNumberRightXOff() - lineNumberRect.x() )
+            # painter.drawText( lineNumberRect,0,str(index+1) )
             painter.drawText( lineNumberRect,0,str(index+1) )
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            

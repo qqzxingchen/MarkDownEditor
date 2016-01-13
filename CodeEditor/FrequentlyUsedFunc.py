@@ -1,4 +1,4 @@
-import time
+import time,uuid
 from PyQt5 import QtCore
 from CodeEditor.RetuInfo import RetuInfo
 
@@ -83,7 +83,9 @@ class FrequentlyUsedFunc:
         else:
             return value
         
-
+    @staticmethod
+    def genUUID():
+        return uuid.uuid1()
 
 
     # 打印函数执行的时间
@@ -94,8 +96,8 @@ class FrequentlyUsedFunc:
         def newFunc(*args, **args2):  
             t0 = time.time()  
             retValue = func(*args, **args2)
-
             FrequentlyUsedFunc.TotalTime += time.time() - t0
+
             print ("%.10fs taken for {%s},total is %.10fs" % (time.time() - t0, func.__name__, FrequentlyUsedFunc.TotalTime))
             
             return retValue  

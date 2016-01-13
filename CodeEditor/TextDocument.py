@@ -11,18 +11,26 @@ from CodeEditor.RetuInfo import RetuInfo
 TextDocument.__lineTextInfoDictArray的注释信息
 一个Array，其中的每项都是一个dict，称为lineTextInfoDict，它的格式是：
 lineTextInfoDict['lineText']                     一个字符串，该行文本的字符串
-lineTextInfoDict['normalLineTextPixmap']         一个QPixmap对象，绘制对应行文本时，就把这个pixmap绘制到界面上（原始图片）
-lineTextInfoDict['charWidthArray']               绘制到QPixmap对象上时，每个字符的字符宽度（像素数）
+lineTextInfoDict['lineTextPixmap']         一个QPixmap对象，绘制对应行文本时，就把这个pixmap绘制到界面上（原始图片）
+lineTextInfoDict['lineTextCharWidthArray']               绘制到QPixmap对象上时，每个字符的字符宽度（像素数）
 '''
 
 # 主要负责进行文本的绘制工作相关
-class __BaseDocument__(QtCore.QObject):
+class BaseDocument(QtCore.QObject):
 
-    userChangeTextSignal = QtCore.pyqtSignal()
+    # 该信号的参数含义为：
+    # 如果它等于None，则表明是在setText中传入的
+    # 否则，它将为一个list，其中保存着用户操作的操作记录（参见TextDocument.insertText和TextDocument.deleteText）
+    userChangeTextSignal = QtCore.pyqtSignal(object)
 
-    LINE_TEXT_STR = 'lineText'
-    CHAR_WIDTH_ARRAY = 'charWidthArray'
-    NORMAL_LINE_PIXMAP = 'normalLineTextPixmap'
+    # 当某行的pixmap、charWidthArr信息被重新生成时，该信号被发射
+    # 注意，当该行文本改变、或者设置该行的这些数据失效时，都会引发该信号
+    afterGeneratePixmapAndCharWidthArrSignal = QtCore.pyqtSignal(object)
+
+
+    LINETEXT_STR = 'lineText'
+    LINETEXT_PIXMAP = 'lineTextPixmap'
+    LINETEXT_CHARWIDTHARRAY = 'lineTextCharWidthArray'
     
     UnvisibleCharSearcher = re.compile('[\s]{1,}')
     WordSearcher = re.compile('[0-9a-zA-Z]{1,}')
@@ -56,7 +64,7 @@ class __BaseDocument__(QtCore.QObject):
     def getLineCount(self):
         return len(self.__lineTextInfoDictArray)
     
-    
+
     def setText(self,text = ''):
         self.__text = text
         retuDict = FUF.splitTextToLines(self.__text)
@@ -65,8 +73,8 @@ class __BaseDocument__(QtCore.QObject):
         self.__lineTextInfoDictArray = []
         self.__lineMaxWidth = 0
         for text in retuDict['splitedTexts']:
-            self.__lineTextInfoDictArray.append({__BaseDocument__.LINE_TEXT_STR:text})
-        self.userChangeTextSignal.emit()
+            self.__lineTextInfoDictArray.append({BaseDocument.LINETEXT_STR:text})
+        self.userChangeTextSignal.emit(None)
         
     def getText(self):
         return self.__text
@@ -90,111 +98,103 @@ class __BaseDocument__(QtCore.QObject):
             return False
         else:
             return True
-    
-    def changeLineText(self,lineIndex,newText):
-        if self.isLineIndexValid(lineIndex) == False:
-            return False
-        self.__lineTextInfoDictArray[lineIndex] = {__BaseDocument__.LINE_TEXT_STR:newText}
-        return True
         
+    # 增加行：文本将会把newText插入到lineIndex之前，使newText成为新的第lineIndex号元素
+    def addLine(self,lineIndex,newText):
+        if lineIndex < 0:
+            return False
+        self.__lineTextInfoDictArray.insert(lineIndex, {BaseDocument.LINETEXT_STR:newText})
+        return True
+    
+    # 删除行
     def delLine(self,lineIndex):
         if self.isLineIndexValid(lineIndex) == False:
             return False
         self.__lineTextInfoDictArray.remove( self.__lineTextInfoDictArray[lineIndex] )
         if self.getLineCount() == 0:
-            self.__lineTextInfoDictArray.append( {__BaseDocument__.LINE_TEXT_STR:''} )            
+            self.__lineTextInfoDictArray.append( {BaseDocument.LINETEXT_STR:''} )            
         return True
     
-    # 文本将会把newText插入到lineIndex之前，使newText成为新的第lineIndex号元素
-    def addLine(self,lineIndex,newText):
-        if lineIndex < 0:
+    # 修改行文本，并删除其它所有的行数据        
+    def setLineText(self,lineIndex,newText):
+        if self.isLineIndexValid(lineIndex) == False:
             return False
-        self.__lineTextInfoDictArray.insert(lineIndex, {__BaseDocument__.LINE_TEXT_STR:newText})
+        self.__lineTextInfoDictArray[lineIndex] = {BaseDocument.LINETEXT_STR:newText}
         return True
     
+    # 获取行文本    
+    def getLineText(self,index,outOfIndexValue=None):
+        if self.isLineIndexValid(index) == False:
+            return outOfIndexValue 
+        return self.__lineTextInfoDictArray[index][BaseDocument.LINETEXT_STR]
     
-    
-    
-    
-    # 绘制该行文本时部分数据的操作
-    def clearLineTextInfoDict(self,index):
+    # 设置行其它数据
+    def setLineTextInfoByKey(self,index,key,value):
         if self.isLineIndexValid(index) == False:
             return False
-        self.__lineTextInfoDictArray[index] = {__BaseDocument__.LINE_TEXT_STR:self.getLineTextByIndex(index)}
-        return True
-    
-    def clearCharWidthArrayByIndex(self,index):
-        if self.isLineIndexValid(index) == False:
-            return False
-        if self.getLineTextInfo(index,TextDocument.CHAR_WIDTH_ARRAY ) == None:
-            data = None
-        else:
-            data = self.__lineTextInfoDictArray[index].pop(TextDocument.CHAR_WIDTH_ARRAY)
-        return data
-            
-    def clearNormalLineTextPixmapByIndex(self,index):
-        if self.isLineIndexValid(index) == False:
-            return False
-        if self.getLineTextInfo(index,TextDocument.NORMAL_LINE_PIXMAP ) == None:
-            data = None
-        else:
-            data = self.__lineTextInfoDictArray[index].pop(TextDocument.NORMAL_LINE_PIXMAP)
-        return data
-    
-    def setLineTextInfo(self,index,key,value):
-        if self.isLineIndexValid(index) == False:
-            return False
-        if key == __BaseDocument__.LINE_TEXT_STR:
+        if key == BaseDocument.LINETEXT_STR:
             return False
         self.__lineTextInfoDictArray[index][key] = value
         return True
     
-    def getLineTextInfo(self,index,key):
+    # 获取行其它数据
+    def getLineTextInfoByKey(self,index,key):
         if self.isLineIndexValid(index) == False:
             return None
         return self.__lineTextInfoDictArray[index].get(key)
-        
-    
-    
-    # 获取某行的文本
-    def getLineTextByIndex(self,index,outOfIndexValue=None):
+
+    # 清除行其它数据
+    def clearLineTextInfoDict(self,index):
         if self.isLineIndexValid(index) == False:
-            return outOfIndexValue 
-        return self.__lineTextInfoDictArray[index][__BaseDocument__.LINE_TEXT_STR]
+            return False
+        return self.setLineText(index, self.getLineText(index))
     
+
+    
+    # 作为判断某行的pixmap数据和charWidthArr数据是否有效，可以被继承并重写
+    # 返回值：
+    #    None  传入的行号越界
+    #    True  传入的行号对应行的Pixmap数据和charWidthArr数据有效
+    #    False 传入的行号对应行的Pixmap数据和charWidthArr数据无效，需要更新
+    def isLinePixmapAndCharWidthArrValid(self,index):
+        if self.isLineIndexValid(index) == False:
+            return None
+        if self.getLineTextInfoByKey(index, BaseDocument.LINETEXT_PIXMAP) == None or \
+            self.getLineTextInfoByKey(index, BaseDocument.LINETEXT_CHARWIDTHARRAY) == None:
+            return False
+        else:
+            return True
+    
+    
+
     # 以下几个方法的参数outOfIndexValue，是指当传入的index越限时，将会返回的值
-    def getCharWidthArrayByIndex(self,index,outOfIndexValue=None):
-        if self.isLineIndexValid(index) == False:
+    def getLineCharWidthArrayByIndex(self,index,outOfIndexValue=None):
+        retV = self.isLinePixmapAndCharWidthArrValid(index)
+        if retV == None:
             return outOfIndexValue
-        if self.__lineTextInfoDictArray[index].get(__BaseDocument__.CHAR_WIDTH_ARRAY) == None:
+        if retV == False:
             self.__refreshLineTextInfoDictByIndex(index)
-        return self.__lineTextInfoDictArray[index][__BaseDocument__.CHAR_WIDTH_ARRAY]
-
-    def getNormalLineTextPixmapByIndex(self,index,outOfIndexValue=None):
-        if self.isLineIndexValid(index) == False:
+        return self.getLineTextInfoByKey(index, BaseDocument.LINETEXT_CHARWIDTHARRAY)  
+            
+    def getLinePixmapByIndex(self,index,outOfIndexValue=None):
+        retV = self.isLinePixmapAndCharWidthArrValid(index)
+        if retV == None:
             return outOfIndexValue
-        if self.__lineTextInfoDictArray[index].get(__BaseDocument__.NORMAL_LINE_PIXMAP) == None:
+        if retV == False:
             self.__refreshLineTextInfoDictByIndex(index)
-        return self.__lineTextInfoDictArray[index][__BaseDocument__.NORMAL_LINE_PIXMAP]
+        return self.getLineTextInfoByKey(index, BaseDocument.LINETEXT_PIXMAP)  
         
-    def getLineTextInfoDictByIndex(self,index,outOfIndexValue=None):
-        if self.isLineIndexValid(index) == False:
-            return outOfIndexValue
-        if self.__lineTextInfoDictArray[index].get(__BaseDocument__.NORMAL_LINE_PIXMAP) == None:
-            self.__refreshLineTextInfoDictByIndex(index)
-
-        return self.__lineTextInfoDictArray[index]    
+  
 
 
 
-    # 根据当前最新的文本，来重绘文本信息Dict
-    # @FUF.funcExeTime
+    # 根据当前最新的文本，来重绘文本信息，并将重绘之后的数据进行存储
     def __refreshLineTextInfoDictByIndex(self,index):
-        lineHeight = self.__fontMetrics.lineSpacing()        
-        curLineText = self.getLineTextByIndex(index)
+        lineHeight = self.getFontMetrics().lineSpacing()        
+        curLineText = self.getLineText(index)
         charMatchedSettings = self.generateCharMatchedSettings(index)
 
-        pixmapObj = QtGui.QPixmap(len(curLineText)*( CEGD.CharDistancePixel + self.__fontMetrics.maxWidth() * 2 ),lineHeight)
+        pixmapObj = QtGui.QPixmap(len(curLineText)*( CEGD.CharDistancePixel + self.getFontMetrics().maxWidth() * 2 ),lineHeight)
         pixmapObj.fill(QtGui.QColor(255,255,255,0))
         painter = QtGui.QPainter(pixmapObj)
         
@@ -213,10 +213,13 @@ class __BaseDocument__(QtCore.QObject):
             charWidthInfoArr.append( letterRect.width() )
         del painter   # 删除当前的painter，才能继续为pixmap创建新的画笔并绘制
         
-        # 最大宽度需要减掉最后一个字符导致的字符长度增长，这样可以保证即使用户把滚动条拉倒最右边，也有字符显示出来
-        self.setLineTextInfo(index, __BaseDocument__.CHAR_WIDTH_ARRAY, charWidthInfoArr)
-        self.setLineTextInfo(index, __BaseDocument__.NORMAL_LINE_PIXMAP, pixmapObj)
+        # 最大宽度需要减掉最后一个字符导致的字符长度增长，这样可以保证即使用户把滚动条拉倒最右边，也有字符显示出来        
         self.refreshLineMaxWidth( curXOff - letterRect.width() )
+        self.setLineTextInfoByKey(index, BaseDocument.LINETEXT_PIXMAP, pixmapObj)
+        self.setLineTextInfoByKey(index, BaseDocument.LINETEXT_CHARWIDTHARRAY, charWidthInfoArr)
+        self.afterGeneratePixmapAndCharWidthArrSignal.emit(index)
+        
+        
 
 
     # 根据matchedPenAndInfo中的信息，更新painter的QFont和QPen
@@ -238,7 +241,7 @@ class __BaseDocument__(QtCore.QObject):
     #         list的每项都为一个Tuple，格式为： ( QPenObj,QFontObj )
     def generateCharMatchedSettings(self,lineIndex):
         arr = []
-        for c in self.getLineTextByIndex(lineIndex):
+        for c in self.getLineText(lineIndex):
             arr.append( (CEGD.LineTextPen,self.getChineseCharFont() if FUF.isChineseChar(c) else self.getFont() ) )
         return arr        
 
@@ -259,7 +262,7 @@ class __BaseDocument__(QtCore.QObject):
 
 
 
-class TextDocument(__BaseDocument__):
+class TextDocument(BaseDocument):
     
     # 设当前行内容为lineText，当前光标的xIndexPos为curIndex（表示光标位置向左查，有curIndex个字符）
     # 该函数将会返回一个int值，该值为光标新位置距离旧位置的偏移。该位置恒为正
@@ -283,7 +286,7 @@ class TextDocument(__BaseDocument__):
 
 
     def __init__(self,font=QtGui.QFont('Consolas',11) ,parent=None):
-        __BaseDocument__.__init__(self, font, parent)
+        BaseDocument.__init__(self, font, parent)
         
         # 用户操作记录
         self.__operateCache = OperateCache()
@@ -307,7 +310,6 @@ class TextDocument(__BaseDocument__):
 
 
     # 插删字符串操作对外的接口
-    @FUF.funcExeTime
     def insertText(self,xyIndexPosTuple,text,record = True):
         retuDict = self.__insertText(xyIndexPosTuple, text)
         
@@ -315,7 +317,7 @@ class TextDocument(__BaseDocument__):
             for r in retuDict['operateRecords']:
                 self.addRecord( r )
         
-        self.userChangeTextSignal.emit()
+        self.userChangeTextSignal.emit(retuDict['operateRecords'])
         
         return retuDict['indexPos']
 
@@ -326,7 +328,7 @@ class TextDocument(__BaseDocument__):
             for r in retuDict['operateRecords']:
                 self.addRecord( r )
 
-        self.userChangeTextSignal.emit()
+        self.userChangeTextSignal.emit(retuDict['operateRecords'])
 
         return retuDict['indexPos']
 
@@ -355,8 +357,8 @@ class TextDocument(__BaseDocument__):
     # 插入一个换行符
     def __insertLineBreak(self,xyIndexPosTuple):
         xPos,yPos = xyIndexPosTuple
-        curLineText = self.getLineTextByIndex(yPos)
-        self.changeLineText(yPos,curLineText[0:xPos] )
+        curLineText = self.getLineText(yPos)
+        self.setLineText(yPos,curLineText[0:xPos] )
         self.addLine( yPos + 1,curLineText[xPos:len(curLineText)] )
         
         newXYIndexPos = (0,yPos+1)
@@ -366,8 +368,8 @@ class TextDocument(__BaseDocument__):
     # 插入一段没有换行符的文本
     def __insertTextWithoutLineBreak(self,xyIndexPosTuple,text):        
         xPos,yPos = xyIndexPosTuple
-        curLineText = self.getLineTextByIndex(yPos)
-        self.changeLineText(yPos, curLineText[0:xPos] + text + curLineText[xPos:len(curLineText)])
+        curLineText = self.getLineText(yPos)
+        self.setLineText(yPos, curLineText[0:xPos] + text + curLineText[xPos:len(curLineText)])
 
         newXYIndexPos = ( len(curLineText[0:xPos] + text) ,yPos)
         operateRecord = OperateRecord.deleteText( (xPos,yPos),len(text) )
@@ -378,13 +380,13 @@ class TextDocument(__BaseDocument__):
         xPos,yPos = xyIndexPosTuple
         operateRecords = []
         
-        while len(self.getLineTextByIndex(yPos))-xPos < length:
+        while len(self.getLineText(yPos))-xPos < length:
             retuRecord = self.__deleteLineBreak(yPos)
             operateRecords.append( retuRecord )
             length -= 1            
         
-        curLineText = self.getLineTextByIndex(yPos)
-        self.changeLineText( yPos,curLineText[0:xPos]+curLineText[xPos+length:len(curLineText)] )
+        curLineText = self.getLineText(yPos)
+        self.setLineText( yPos,curLineText[0:xPos]+curLineText[xPos+length:len(curLineText)] )
         operateRecords.append( OperateRecord.insertText( (xPos,yPos),curLineText[xPos:xPos+length] ) )
 
         return RetuInfo.info( indexPos = xyIndexPosTuple,operateRecords = operateRecords )
@@ -392,9 +394,9 @@ class TextDocument(__BaseDocument__):
     # 删掉第lineIndex行的行尾换行符，其实质是将第lineIndex和第lineIndex+1行的文本合并为一行
     # 如果不存在第lineIndex+1行，则什么都不做
     def __deleteLineBreak(self,lineIndex):
-        text1 = self.getLineTextByIndex(lineIndex)
-        text2 = self.getLineTextByIndex(lineIndex+1,'')
-        self.changeLineText(lineIndex, text1+text2)
+        text1 = self.getLineText(lineIndex)
+        text2 = self.getLineText(lineIndex+1,'')
+        self.setLineText(lineIndex, text1+text2)
         self.delLine(lineIndex+1)
     
         return OperateRecord.insertText( (len(text1),lineIndex),self.getSplitedChar() )
@@ -417,17 +419,17 @@ class TextDocument(__BaseDocument__):
         if indexPosA[1] == indexPosB[1]:
             absV = indexPosB[0] - indexPosA[0]
         else:
-            absV = len(self.getLineTextByIndex(indexPosA[1])) - indexPosA[0] + 1
+            absV = len(self.getLineText(indexPosA[1])) - indexPosA[0] + 1
             absV += indexPosB[0]
             for index in range( indexPosA[1]+1,indexPosB[1] ):
-                absV += len(self.getLineTextByIndex(index)) + 1
+                absV += len(self.getLineText(index)) + 1
         return positiveSign * absV
     
     # 判断xyIndexPosTuple所标示的光标位置是否存在
     def isIndexPosValid(self,xyIndexPosTuple):
         xPos,yPos = xyIndexPosTuple
 
-        lineText = self.getLineTextByIndex(yPos)
+        lineText = self.getLineText(yPos)
         if lineText == None:
             return False
         if (xPos < 0) or (xPos > len(lineText)):
@@ -436,13 +438,13 @@ class TextDocument(__BaseDocument__):
     def formatIndexPos(self,xyIndexPosTuple):
         xPos,yPos = xyIndexPosTuple
 
-        lineText = self.getLineTextByIndex(yPos)
+        lineText = self.getLineText(yPos)
         if lineText == None:
             if yPos < 0:
                 return (0,0)
             else:
                 l = self.getLineCount()-1
-                return ( len(self.getLineTextByIndex(l)),l )
+                return ( len(self.getLineText(l)),l )
         else:
             if xPos < 0:
                 return ( 0,yPos )
@@ -465,13 +467,13 @@ class TextDocument(__BaseDocument__):
     # 左移一个单词
     def moveIndexPosLeftByWord(self,xyIndexPosTuple):
         xPos,yPos = xyIndexPosTuple
-        off = TextDocument.skipSpaceAndWordByLeft( self.getLineTextByIndex(yPos),xPos )
+        off = TextDocument.skipSpaceAndWordByLeft( self.getLineText(yPos),xPos )
         return self.__moveIndexPosByX(xyIndexPosTuple, -off)
     
     # 右移一个单词
     def moveIndexPosRightByWord(self,xyIndexPosTuple):
         xPos,yPos = xyIndexPosTuple
-        off = TextDocument.skipSpaceAndWordByRight( self.getLineTextByIndex(yPos),xPos )
+        off = TextDocument.skipSpaceAndWordByRight( self.getLineText(yPos),xPos )
         return self.__moveIndexPosByX(xyIndexPosTuple, off)
     
     def __moveIndexPosByY(self,xyIndexPosTuple,distance):
@@ -485,7 +487,7 @@ class TextDocument(__BaseDocument__):
         elif yPos >= self.getLineCount():
             yPos = self.getLineCount()-1
         
-        curLineText = self.getLineTextByIndex(yPos)
+        curLineText = self.getLineText(yPos)
         if xPos > len(curLineText):
             xPos = len(curLineText)
         return (xPos,yPos)
@@ -502,18 +504,18 @@ class TextDocument(__BaseDocument__):
                 yPos -= 1
                 if yPos < 0:
                     return (0,0)
-                xPos += len(self.getLineTextByIndex(yPos)) + 1
+                xPos += len(self.getLineText(yPos)) + 1
                 if xPos >= 0:
                     return (xPos,yPos)                
             
-        elif xPos >= len(self.getLineTextByIndex(yPos))+1:
+        elif xPos >= len(self.getLineText(yPos))+1:
             while True:
-                xPos -= ( len(self.getLineTextByIndex(yPos))+1 )                
+                xPos -= ( len(self.getLineText(yPos))+1 )                
                 yPos += 1
                 if yPos >= self.getLineCount():
                     l = self.getLineCount() - 1
-                    return ( len(self.getLineTextByIndex(l)),l )                
-                if xPos <= len(self.getLineTextByIndex(yPos)):
+                    return ( len(self.getLineText(l)),l )                
+                if xPos <= len(self.getLineText(yPos)):
                     return (xPos,yPos)
         else:
             return (xPos,yPos)

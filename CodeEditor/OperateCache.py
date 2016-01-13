@@ -71,7 +71,7 @@ class OperateRecord:
     
     
     # 只是用来展示数据
-    def showRecord(self):
+    def __str__(self):
         if self.recordType == OperateRecord.OPERATETYPE_INSERTTEXT:
             return 'insert(indexPos:%s) text:%s' % (self.indexPos,self.text)
         else:
