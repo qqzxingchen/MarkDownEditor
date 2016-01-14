@@ -4,7 +4,7 @@ from PyQt5 import QtGui,QtCore
 from PyQt5.QtWidgets import QWidget
 
 from CodeEditor.CodeEditorGlobalDefines import CodeEditorGlobalDefines as CEGD
-from CodeEditor.EditorSettings import EditorSettings
+from CodeEditor.ToolClass.EditorSettings import EditorSettings
 
 
 

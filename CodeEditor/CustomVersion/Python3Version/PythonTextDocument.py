@@ -6,7 +6,7 @@ from PyQt5 import QtGui
 from CodeEditor.TextDocument import TextDocument
 from CodeEditor.CodeEditorGlobalDefines import CodeEditorGlobalDefines as CEGD
 from CodeEditor.FrequentlyUsedFunc import FrequentlyUsedFunc as FUF
-from CodeEditor.RetuInfo import RetuInfo
+from CodeEditor.ToolClass.RetuInfo import RetuInfo
 
 
 class PythonTextDocument(TextDocument):

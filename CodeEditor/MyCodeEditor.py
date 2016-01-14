@@ -7,6 +7,8 @@ from PyQt5 import QtCore, QtWidgets
 from CodeEditor.CodeTextEditWidget import CodeTextEditWidget
 from CodeEditor.CodeEditorGlobalDefines import GlobalEventFilter
 
+from CodeEditor.CustomVersion.Python3Version.PythonTextDocument import PythonTextDocument
+
 class MyCodeEditor(QWidget):
 
     def __init__(self,parent=None):
@@ -21,7 +23,7 @@ class MyCodeEditor(QWidget):
     
 
     def __initData(self):
-        self.__codeTextWidget = CodeTextEditWidget(self)
+        self.__codeTextWidget = CodeTextEditWidget(PythonTextDocument(),self)
         self.__codeTextWidget.document().userChangeTextSignal.connect(self.__onCodeTextChanged)
         self.__codeTextWidget.lineTextMaxPixelChangedSignal.connect(self.__onLineStrLengthChanged)
         
@@ -49,7 +51,7 @@ class MyCodeEditor(QWidget):
             self.__horizontalScrollBar.setValue(hMax)
         
     
-    def __onCodeTextChanged(self):        
+    def __onCodeTextChanged(self,*arg1,**arg2):        
         vMax = self.__codeTextWidget.document().getLineCount()-1
         self.__verticalScrollBar.setRange(0,vMax)
         if self.__verticalScrollBar.value() > vMax:
@@ -101,7 +103,7 @@ if __name__ == "__main__":
     #with codecs.open( '../tmp/temp3.txt','r','utf-8' ) as templateFileObj:
     with codecs.open( 'CodeTextEditWidget.py','r','utf-8' ) as templateFileObj:
         fileStr = templateFileObj.read()
-        mce.setText(fileStr*5)
+        mce.setText(fileStr*15)
     mce.show()
     mce.resize(600,400)
     

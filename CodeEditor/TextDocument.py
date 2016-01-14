@@ -3,8 +3,8 @@ import re
 from PyQt5 import QtCore,QtGui
 from CodeEditor.CodeEditorGlobalDefines import CodeEditorGlobalDefines as CEGD
 from CodeEditor.FrequentlyUsedFunc import FrequentlyUsedFunc as FUF
-from CodeEditor.OperateCache import OperateCache, OperateRecord
-from CodeEditor.RetuInfo import RetuInfo
+from CodeEditor.ToolClass.OperateCache import OperateCache, OperateRecord
+from CodeEditor.ToolClass.RetuInfo import RetuInfo
 
 
 '''
