@@ -257,9 +257,6 @@ class PythonTextDocument(TextDocument):
 
     
     def generateCharMatchedSettings(self,lineIndex):
-        if lineIndex == 6:
-            s = 10
-        
         lineStr = self.getLineText(lineIndex)
         retuArr = []
         arr = len(lineStr) * [0]
@@ -276,13 +273,8 @@ class PythonTextDocument(TextDocument):
         for index in range( int(len(strPos)/2) ):
             start = strPos[index*2]
             end = strPos[index*2+1]
-            try:
-                for i in range( start[0],end[0] ):
-                    arr[i] = 3
-            except Exception as reason:
-                print ( start,end,lineIndex,arr )
-                print ( self.__strIndexPosArr )
-            
+            for i in range( start[0],end[0] ):
+                arr[i] = 3
             
         for index in range(len(arr)):
             if FUF.isChineseChar(lineStr[index]):

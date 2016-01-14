@@ -10,6 +10,7 @@ from CodeEditor.LineNumberWidget import LineNumberWidget
 from CodeEditor.CodeEditorGlobalDefines import CodeEditorGlobalDefines as CEGD,GlobalClipBorard
 from CodeEditor.FrequentlyUsedFunc import FrequentlyUsedFunc as FUF
 from CodeEditor.EditorSettings import EditorSettings
+from CodeEditor.RetuInfo import RetuInfo
 
 from CodeEditor.CustomVersion.Python3Version.PythonTextDocument import PythonTextDocument
 
@@ -184,11 +185,11 @@ class CodeTextEditWidget(QWidget):
         if curXPixel < self.getLineTextLeftXOff():
             moveDistance = self.getLineTextLeftXOff() - curXPixel
             moveDistance = (int(moveDistance / 100) + 1) * 100
-            self.showLeftXOffAsLeft(self.getStartDisLetterXOff()-moveDistance,False)
+            self.showLeftXOffAsLeft(self.getStartDisLetterXOff()-moveDistance)
         elif curXPixel+CEGD.CursorWidth > self.width():
             moveDistance = curXPixel-self.width()
             moveDistance = (int(moveDistance / 100) + 1) * 100
-            self.showLeftXOffAsLeft(self.getStartDisLetterXOff()+moveDistance, False)
+            self.showLeftXOffAsLeft(self.getStartDisLetterXOff()+moveDistance)
         
         
         curYIndex = curCursorPos[1]
@@ -216,7 +217,8 @@ class CodeTextEditWidget(QWidget):
     def mousePressEvent(self, event):
         self.clearSelectText()
         if event.button() == QtCore.Qt.LeftButton:
-            self.__textCursor.setGlobalCursorPos(self.__transUserClickedPixelPosToIndexPos((event.x(),event.y())))
+            posInfo = self.__transUserClickedPixelPosToIndexPos((event.x(),event.y()))
+            self.__textCursor.setGlobalCursorPos(posInfo['indexPos'])
             self.setUserDataByKey('leftMousePressed',True)
             self.setUserDataByKey('leftMousePressed_curCursor',self.__textCursor.getCursorIndexPos())
         elif event.button() == QtCore.Qt.RightButton:
@@ -230,9 +232,9 @@ class CodeTextEditWidget(QWidget):
 
     def mouseMoveEvent(self, event):
         if self.getUserDataByKey('leftMousePressed') == True:
-            indexPos = self.__transUserClickedPixelPosToIndexPos( (event.x(),event.y()) )
-            self.__textCursor.setGlobalCursorPos( indexPos )
-            self.setSelectTextByIndexPos( self.getUserDataByKey('leftMousePressed_curCursor'),indexPos )
+            posInfo = self.__transUserClickedPixelPosToIndexPos( (event.x(),event.y()) )
+            self.__textCursor.setGlobalCursorPos( posInfo['indexPos'] )
+            self.setSelectTextByIndexPos( self.getUserDataByKey('leftMousePressed_curCursor'),posInfo['indexPos'] )
         
     def mouseReleaseEvent(self, event):
         self.setUserDataByKey('leftMousePressed',None)
@@ -484,8 +486,7 @@ class CodeTextEditWidget(QWidget):
    
     # 根据全局的indexPos，得到全局的pixelPos
     def __transGloIndexPosToGloPixelPos(self,xyIndexPosTuple):
-        xIndexPos = xyIndexPosTuple[0]
-        yIndexPos = xyIndexPosTuple[1]
+        xIndexPos,yIndexPos = xyIndexPosTuple
         charWidthInfoArr = self.__textDocument.getLineCharWidthArrayByIndex(yIndexPos)
                
         yPixelPos = yIndexPos*self.getFontMetrics().lineSpacing() + CEGD.TextYOff
@@ -518,8 +519,7 @@ class CodeTextEditWidget(QWidget):
             if ( startX - (charWidth + CEGD.CharDistancePixel)/2 > x ):
                 startX -= (charWidth + CEGD.CharDistancePixel)
                 xIndex -= 1
-        return ( xIndex,lineIndex )
-        #return RetuInfo.info( indexPos = ( xIndex,lineIndex ) , isOnTheLeftOfIndexPos =  )
+        return RetuInfo.info( indexPos = ( xIndex,lineIndex ) , offset = x-startX )
 
 
 
