@@ -35,6 +35,18 @@ class LineNumberWidget(QWidget):
     def __onLeftXOffChanged(self,newLeftXOff):
         self.resize( newLeftXOff,self.height() )
         
+        
+        
+        
+        
+        
+        
+        
+        
+    def mouseDoubleClickEvent(self, event):
+        print (event.x(),event.y())
+        
+        
     def paintEvent(self, event):
         painter = QtGui.QPainter(self)
         painter.setFont(self.getFont())
@@ -45,7 +57,6 @@ class LineNumberWidget(QWidget):
         painter.save()
         self.__drawLineNumber(painter)
         painter.restore()
-
 
     # 绘制行号
     def __drawLineNumber(self,painter):

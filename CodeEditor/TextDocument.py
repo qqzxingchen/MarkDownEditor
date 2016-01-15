@@ -274,15 +274,16 @@ class TextDocument(BaseDocument):
         for searcher in TextDocument.Searchers:
             matchObj = searcher.match(rightText)
             if matchObj != None:
-                return matchObj.span()[1] - matchObj.span()[0]
-        return 1
-
+                return RetuInfo.info( searcher = searcher, offset = matchObj.span()[1] - matchObj.span()[0] )
+        return RetuInfo.info( searcher = None,offset = 1)
+        
     @staticmethod
     def skipSpaceAndWordByLeft(lineText,curIndex):
         l = list(lineText)
         l.reverse()
         return TextDocument.skipSpaceAndWordByRight( ''.join(l) , len(lineText)-curIndex)
-
+        
+        
 
 
     def __init__(self,font=QtGui.QFont('Consolas',11) ,parent=None):
@@ -467,13 +468,13 @@ class TextDocument(BaseDocument):
     # 左移一个单词
     def moveIndexPosLeftByWord(self,xyIndexPosTuple):
         xPos,yPos = xyIndexPosTuple
-        off = TextDocument.skipSpaceAndWordByLeft( self.getLineText(yPos),xPos )
+        off = TextDocument.skipSpaceAndWordByLeft( self.getLineText(yPos),xPos )['offset']
         return self.__moveIndexPosByX(xyIndexPosTuple, -off)
     
     # 右移一个单词
     def moveIndexPosRightByWord(self,xyIndexPosTuple):
         xPos,yPos = xyIndexPosTuple
-        off = TextDocument.skipSpaceAndWordByRight( self.getLineText(yPos),xPos )
+        off = TextDocument.skipSpaceAndWordByRight( self.getLineText(yPos),xPos )['offset']
         return self.__moveIndexPosByX(xyIndexPosTuple, off)
     
     def __moveIndexPosByY(self,xyIndexPosTuple,distance):

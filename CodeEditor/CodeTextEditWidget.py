@@ -30,8 +30,6 @@ class CodeTextEditWidget(QWidget):
     def showLeftXOffAsLeft(self,xOff,update=True):
         self.setStartDisLetterXOff( 0 if xOff < 0 else xOff,update )
         
-    
-    
     def deleteSelectText(self,update = True):
         selectedTextIndexPosRange = self.getSelectedTextIndexPosSorted()
         if selectedTextIndexPosRange != None:
@@ -158,7 +156,6 @@ class CodeTextEditWidget(QWidget):
             moveDistance = (int(moveDistance / 100) + 1) * 100
             self.showLeftXOffAsLeft(self.getStartDisLetterXOff()+moveDistance)
         
-        
         curYIndex = curCursorPos[1]
         if ( curYIndex < self.getStartDisLineNumber() ):
             self.showLineNumberAsTop(curYIndex)
@@ -179,6 +176,55 @@ class CodeTextEditWidget(QWidget):
     
     
     
+    def __onLeftMouseDoubleClicked(self,clickedPixelPos):
+        retuDict = self.__transUserClickedPixelPosToIndexPos( clickedPixelPos )
+        xPos,yPos = retuDict['indexPos']
+        offset = retuDict['offset']
+        lineText = self.__textDocument.getLineText(yPos)
+        if len(lineText) == 0:
+            self.clearSelectedText()
+            return 
+            
+        prevClickedPixelPos = self.getUserDataByKey('leftMouseDoubleClickedPos')
+        if prevClickedPixelPos == clickedPixelPos:
+            self.setUserDataByKey('leftMouseDoubleClickedPos',None)
+            self.setSelectTextIndexPos( (0,yPos),(len(lineText),yPos),False )
+            self.__textCursor.setGlobalCursorPos( (len(lineText),yPos) )
+        else:
+            self.setUserDataByKey('leftMouseDoubleClickedPos',clickedPixelPos)
+            if xPos == 0:
+                length = TextDocument.skipSpaceAndWordByRight(lineText, xPos)['offset']
+            elif xPos == len(lineText):
+                length = TextDocument.skipSpaceAndWordByLeft(lineText, xPos)['offset']
+                xPos -= length
+            else:
+                toLeftRetuDict = TextDocument.skipSpaceAndWordByLeft(lineText, xPos)
+                toRightRetuDict = TextDocument.skipSpaceAndWordByRight(lineText, xPos)
+                if toLeftRetuDict['searcher'] == toRightRetuDict['searcher'] and toLeftRetuDict['searcher'] != None:
+                    length = toLeftRetuDict['offset'] + toRightRetuDict['offset']
+                    xPos -= toLeftRetuDict['offset']
+                else:
+                    if offset >= 0:
+                        length = toRightRetuDict['offset']
+                    else:
+                        length = toLeftRetuDict['offset']
+                        xPos -= length
+            self.setSelectTextIndexPos( (xPos,yPos),(xPos+length,yPos),False )
+            self.__textCursor.setGlobalCursorPos( (xPos+length,yPos) )
+        
+    
+    
+    
+    def mouseDoubleClickEvent(self, event):
+        if event.x() < self.getLineNumberRightXOff():
+            return
+
+        curClickedPixelPos = (event.x(),event.y())
+        if event.button() == QtCore.Qt.LeftButton:
+            self.__onLeftMouseDoubleClicked(curClickedPixelPos)
+        
+        
+    
     
     # leftMousePressed 和 leftMousePressed_curCursor只在以下三个函数使用，用来记录一些状态值
     def mousePressEvent(self, event):
@@ -190,12 +236,12 @@ class CodeTextEditWidget(QWidget):
             self.setUserDataByKey('leftMousePressed_curCursor',self.__textCursor.getCursorIndexPos())
         elif event.button() == QtCore.Qt.RightButton:
             
-            font = QtGui.QFont( "Consolas",self.getFont().pointSize()+1 )
-            font.setBold(True)
-            self.setFont(font)
+            #font = QtGui.QFont( "Consolas",self.getFont().pointSize()+1 )
+            #font.setBold(True)
+            #self.setFont(font)
             
-            #self.setLineTextLeftXOff( self.getLineTextLeftXOff() + 10 )
-            #self.setLineNumberRightXOff( self.getLineNumberRightXOff() + 10 )
+            self.setLineTextLeftXOff( self.getLineTextLeftXOff() + 10 )
+            self.setLineNumberRightXOff( self.getLineNumberRightXOff() + 10 )
 
     def mouseMoveEvent(self, event):
         if self.getUserDataByKey('leftMousePressed') == True:
@@ -211,6 +257,10 @@ class CodeTextEditWidget(QWidget):
 
     def resizeEvent(self, event):
         self.__lineNumberWidget.setGeometry( 0,0,self.getLineTextLeftXOff(),self.height() )
+
+
+
+
 
 
 
@@ -439,6 +489,14 @@ class CodeTextEditWidget(QWidget):
     
         
         
+        
+        
+        
+        
+        
+        
+        
+        
     # 根据光标的全局位置，计算出当前视口下光标的实际位置
     # 返回tuple
     def __transGloPixelPosToCurPixelPos(self,xyGloPixelPosTuple):
@@ -507,6 +565,13 @@ class CodeTextEditWidget(QWidget):
     
     
 
+
+
+
+
+
+
+
       
     def paintEvent(self,event):
         visibleLineYOffInfoArray = self.__calcAnyVisibleYOff()
@@ -527,12 +592,6 @@ class CodeTextEditWidget(QWidget):
         painter.restore()
                 
         
-
-
-        
-
-
-
     # 绘制每行文本
     def __drawLineText(self,painter,visibleLineYOffInfoArray,redrawRect):
         
