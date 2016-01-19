@@ -1,7 +1,7 @@
 
 import sys
 
-from PyQt5 import QtGui,QtCore
+from PyQt5 import QtGui,QtCore,QtWidgets
 from PyQt5.QtWidgets import QWidget
 
 from CodeEditor.TextDocument import TextDocument
@@ -13,6 +13,20 @@ from CodeEditor.FrequentlyUsedFunc import FrequentlyUsedFunc as FUF
 from CodeEditor.ToolClass.EditorSettings import EditorSettings
 from CodeEditor.ToolClass.RetuInfo import RetuInfo
 from CodeEditor.ToolClass.SelectedTextManager import SelectedTextManager
+
+
+
+class __EventFilter__(QtCore.QObject):
+    def __init__(self,listenerFunc,parent = None):
+        QtCore.QObject.__init__(self,parent)
+        self.__listenerFunc = listenerFunc
+
+    def eventFilter(self, obj, event):
+        retu = self.__listenerFunc(obj,event)
+        return (retu == True)
+
+    
+
 
 
 class CodeTextEditWidget(QWidget):
@@ -39,20 +53,34 @@ class CodeTextEditWidget(QWidget):
             self.clearSelectedText(update)
             
     
-
+    
     
     def __init__(self,textDocumentObj = None,parent=None):
         QWidget.__init__(self,parent)
         self.__initData(TextDocument() if textDocumentObj == None else textDocumentObj)
+
+        self.__globalEventFilter = __EventFilter__( self.__onGlobalEvents )
+        QtWidgets.qApp.installEventFilter( self.__globalEventFilter )
         
         self.setText = self.__textDocument.setText
         self.getText = self.__textDocument.getText
         self.document = lambda : self.__textDocument
         self.cursor = lambda : self.__textCursor
         
-        self.setCursorFocusOn = lambda event: self.__textCursor.setFocus(QtCore.Qt.MouseFocusReason)
-        
         self.onQuickCtrlKeySignal.connect(self.onQuickCtrlKey)
+        
+
+
+    def __onGlobalEvents(self,obj,event):
+        if event.type() == QtCore.QEvent.FocusIn:
+            self.__textCursor.setFocus(QtCore.Qt.MouseFocusReason)
+            return True
+        if event.type() == QtCore.QEvent.InputMethod:
+            if obj == self.__textCursor or obj == self:
+                self.insertStr(event.commitString())
+                return True
+        
+        
         
     def onQuickCtrlKey(self,key):
         off = key - QtCore.Qt.Key_A

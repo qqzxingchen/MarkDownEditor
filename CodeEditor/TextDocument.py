@@ -10,18 +10,27 @@ from CodeEditor.ToolClass.RetuInfo import RetuInfo
 '''
 TextDocument.__lineTextInfoDictArray的注释信息
 一个Array，其中的每项都是一个dict，称为lineTextInfoDict，它的格式是：
-lineTextInfoDict['lineText']                     一个字符串，该行文本的字符串
-lineTextInfoDict['lineTextPixmap']         一个QPixmap对象，绘制对应行文本时，就把这个pixmap绘制到界面上（原始图片）
-lineTextInfoDict['lineTextCharWidthArray']               绘制到QPixmap对象上时，每个字符的字符宽度（像素数）
+lineTextInfoDict['lineText']                   一个字符串，该行文本的字符串
+lineTextInfoDict['lineTextPixmap']             一个QPixmap对象，绘制对应行文本时，就把这个pixmap绘制到界面上（原始图片）
+lineTextInfoDict['lineTextCharWidthArray']     绘制到QPixmap对象上时，每个字符的字符宽度（像素数）
 '''
 
 # 主要负责进行文本的绘制工作相关
 class BaseDocument(QtCore.QObject):
 
-    # 该信号的参数含义为：
-    # 如果它等于None，则表明是在setText中传入的
-    # 否则，它将为一个list，其中保存着用户操作的操作记录（参见TextDocument.insertText和TextDocument.deleteText）
-    userChangeTextSignal = QtCore.pyqtSignal(object)
+    LINEADD = 0
+    LINECHANGED = 1
+    LINEDELETE = 2
+    LINELEVELCHANGEDSTATE = [LINEADD,LINECHANGED,LINEDELETE]
+    
+    # 该信号在某行文本被改变时触发：
+    # 参数的含义：
+    #     如果为None，则说明是因为setText导致的改变
+    #     如果为有效的tuple，则将会是一个三元组
+    #         data[0] BaseDocument.LINELEVELCHANGEDSTATE 中的一种
+    #         data[1]、data[2] 与data[0]对应函数（addLine、delLine、setLineText）的参数列表一致
+    lineLevelTextChangedSignal = QtCore.pyqtSignal( object )
+
 
     # 当某行的pixmap、charWidthArr信息被重新生成时，该信号被发射
     # 注意，当该行文本改变、或者设置该行的这些数据失效时，都会引发该信号
@@ -74,10 +83,18 @@ class BaseDocument(QtCore.QObject):
         self.__lineMaxWidth = 0
         for text in retuDict['splitedTexts']:
             self.__lineTextInfoDictArray.append({BaseDocument.LINETEXT_STR:text})
-        self.userChangeTextSignal.emit(None)
+            
+        self.lineLevelTextChangedSignal.emit(None)
         
     def getText(self):
+        if self.__isDataDirty == True:
+            self.__text = ''
+            for index in range (self.getLineCount()):
+                self.__text += self.getLineText(index) + self.getSplitedChar()
+
+        self.__isDataDirty = False
         return self.__text
+    
     def getSplitedChar(self):
         return self.__splitedChar
     
@@ -92,6 +109,14 @@ class BaseDocument(QtCore.QObject):
         self.__lineMaxWidth = 0             # 实时保存最大像素宽度
         self.setFont( font )
 
+        self.__isDataDirty = False
+        self.lineLevelTextChangedSignal.connect( self.__onUserOperate )
+                
+    def __onUserOperate(self,info):
+        self.__isDataDirty = ( info != None )
+
+
+
     
     def isLineIndexValid(self,index):
         if (index < 0) or (index >= self.getLineCount()):
@@ -104,15 +129,19 @@ class BaseDocument(QtCore.QObject):
         if lineIndex < 0:
             return False
         self.__lineTextInfoDictArray.insert(lineIndex, {BaseDocument.LINETEXT_STR:newText})
+        self.lineLevelTextChangedSignal.emit( (BaseDocument.LINEADD,lineIndex,newText) )
         return True
     
     # 删除行
     def delLine(self,lineIndex):
         if self.isLineIndexValid(lineIndex) == False:
             return False
-        self.__lineTextInfoDictArray.remove( self.__lineTextInfoDictArray[lineIndex] )
-        if self.getLineCount() == 0:
-            self.__lineTextInfoDictArray.append( {BaseDocument.LINETEXT_STR:''} )            
+        
+        if self.getLineCount() == 1:
+            self.setLineText(0, '')
+        else:
+            self.__lineTextInfoDictArray.remove( self.__lineTextInfoDictArray[lineIndex] )
+            self.lineLevelTextChangedSignal.emit( (BaseDocument.LINEDELETE,lineIndex,None) )
         return True
     
     # 修改行文本，并删除其它所有的行数据        
@@ -120,6 +149,7 @@ class BaseDocument(QtCore.QObject):
         if self.isLineIndexValid(lineIndex) == False:
             return False
         self.__lineTextInfoDictArray[lineIndex] = {BaseDocument.LINETEXT_STR:newText}
+        self.lineLevelTextChangedSignal.emit( (BaseDocument.LINECHANGED,lineIndex,newText) )
         return True
     
     # 获取行文本    
@@ -264,6 +294,15 @@ class BaseDocument(QtCore.QObject):
 
 class TextDocument(BaseDocument):
     
+    
+    # 该信号在用户完成某项操作（修改了文本内容）后触发
+    # 参数的含义：
+    #     如果它等于None，则表明是在setText中传入的
+    #     否则，它将为一个list，其中保存着用户操作的操作记录（参见TextDocument.insertText和TextDocument.deleteText）
+    totalLevelTextChangedSignal = QtCore.pyqtSignal(object)
+    
+    
+    
     # 设当前行内容为lineText，当前光标的xIndexPos为curIndex（表示光标位置向左查，有curIndex个字符）
     # 该函数将会返回一个int值，该值为光标新位置距离旧位置的偏移。该位置恒为正
     # 光标的新位置为 光标向右移动一个“单词”之后的光标位置（skipSpaceAndWordByLeft表示向左移动一个单词之后的光标位置）
@@ -282,9 +321,12 @@ class TextDocument(BaseDocument):
         l = list(lineText)
         l.reverse()
         return TextDocument.skipSpaceAndWordByRight( ''.join(l) , len(lineText)-curIndex)
+    
+    
+    def setText(self, text=''):
+        BaseDocument.setText(self, text=text)
+        self.totalLevelTextChangedSignal.emit(None)
         
-        
-
 
     def __init__(self,font=QtGui.QFont('Consolas',11) ,parent=None):
         BaseDocument.__init__(self, font, parent)
@@ -293,7 +335,7 @@ class TextDocument(BaseDocument):
         self.__operateCache = OperateCache()
         for funcName in OperateCache.funcNames:
             setattr(self, funcName, getattr(self.__operateCache, funcName))
-
+                
 
     def redoOneStep(self):
         lastOperate = self.popOperates()
@@ -318,7 +360,7 @@ class TextDocument(BaseDocument):
             for r in retuDict['operateRecords']:
                 self.addRecord( r )
         
-        self.userChangeTextSignal.emit(retuDict['operateRecords'])
+        self.totalLevelTextChangedSignal.emit(retuDict['operateRecords'])
         
         return retuDict['indexPos']
 
@@ -329,7 +371,7 @@ class TextDocument(BaseDocument):
             for r in retuDict['operateRecords']:
                 self.addRecord( r )
 
-        self.userChangeTextSignal.emit(retuDict['operateRecords'])
+        self.totalLevelTextChangedSignal.emit(retuDict['operateRecords'])
 
         return retuDict['indexPos']
 

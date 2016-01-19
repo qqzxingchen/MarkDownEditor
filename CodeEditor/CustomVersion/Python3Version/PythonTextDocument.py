@@ -41,7 +41,7 @@ class PythonTextDocument(TextDocument):
         self.__strIndexPosArr = []
         self.__invalidPixmapAndCharWidthArrIndexs = []
 
-        self.userChangeTextSignal.connect(self.afterUserOperate)
+        self.totalLevelTextChangedSignal.connect(self.afterUserOperate)
         self.afterGeneratePixmapAndCharWidthArrSignal.connect(self.afterGeneratePixmapAndCharWidthArr)
         
     

@@ -2,10 +2,9 @@
 import sys
 
 from PyQt5.QtWidgets import QWidget,QScrollBar
-from PyQt5 import QtCore, QtWidgets
+from PyQt5 import QtCore
 
 from CodeEditor.CodeTextEditWidget import CodeTextEditWidget
-from CodeEditor.CodeEditorGlobalDefines import GlobalEventFilter
 
 from CodeEditor.CustomVersion.Python3Version.PythonTextDocument import PythonTextDocument
 
@@ -13,18 +12,11 @@ class MyCodeEditor(QWidget):
 
     def __init__(self,parent=None):
         QWidget.__init__(self,parent)
-        self.setAttribute( QtCore.Qt.WA_InputMethodEnabled,True )
         self.__initData()
         
-        self.__callBack = GlobalEventFilter()
-        self.__callBack.regListener_InputMethod( lambda event : self.__codeTextWidget.insertStr(event.commitString()) )
-        self.__callBack.regListener_FocusIn( self.__codeTextWidget.setCursorFocusOn )
-        QtWidgets.qApp.installEventFilter( self.__callBack )
-    
-
     def __initData(self):
         self.__codeTextWidget = CodeTextEditWidget(PythonTextDocument(),self)
-        self.__codeTextWidget.document().userChangeTextSignal.connect(self.__onCodeTextChanged)
+        self.__codeTextWidget.document().totalLevelTextChangedSignal.connect(self.__onCodeTextChanged)
         self.__codeTextWidget.lineTextMaxPixelChangedSignal.connect(self.__onLineStrLengthChanged)
         
         # 横纵滚动条
