@@ -105,10 +105,10 @@ class BaseDocument(QtCore.QObject):
         QtCore.QObject.__init__(self,parent)
         
         # 注释看文件头的注释
-        self.__lineTextInfoDictArray = []
+        self.__lineTextInfoDictArray = [{BaseDocument.LINETEXT_STR:''}]
         self.__lineMaxWidth = 0             # 实时保存最大像素宽度
         self.setFont( font )
-
+        
         self.__isDataDirty = False
         self.lineLevelTextChangedSignal.connect( self.__onUserOperate )
                 
