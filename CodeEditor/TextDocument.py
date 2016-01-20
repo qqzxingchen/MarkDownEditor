@@ -110,9 +110,9 @@ class BaseDocument(QtCore.QObject):
         self.setFont( font )
         
         self.__isDataDirty = False
-        self.lineLevelTextChangedSignal.connect( self.__onUserOperate )
+        self.lineLevelTextChangedSignal.connect( self.__onTextChanged )
                 
-    def __onUserOperate(self,info):
+    def __onTextChanged(self,info):
         self.__isDataDirty = ( info != None )
 
 
@@ -333,12 +333,10 @@ class TextDocument(BaseDocument):
         
         # 用户操作记录
         self.__operateCache = OperateCache()
-        for funcName in OperateCache.funcNames:
-            setattr(self, funcName, getattr(self.__operateCache, funcName))
-                
+        self.operateCache = lambda : self.__operateCache
 
     def redoOneStep(self):
-        lastOperate = self.popOperates()
+        lastOperate = self.operateCache().popOperates()
         if lastOperate == None:
             return
         for index in range(len(lastOperate)):
@@ -358,7 +356,7 @@ class TextDocument(BaseDocument):
         
         if record == True:
             for r in retuDict['operateRecords']:
-                self.addRecord( r )
+                self.operateCache().addRecord( r )
         
         self.totalLevelTextChangedSignal.emit(retuDict['operateRecords'])
         
@@ -369,7 +367,7 @@ class TextDocument(BaseDocument):
         
         if record == True:
             for r in retuDict['operateRecords']:
-                self.addRecord( r )
+                self.operateCache().addRecord( r )
 
         self.totalLevelTextChangedSignal.emit(retuDict['operateRecords'])
 

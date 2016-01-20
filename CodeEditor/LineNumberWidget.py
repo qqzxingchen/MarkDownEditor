@@ -4,33 +4,30 @@ from PyQt5 import QtGui,QtCore
 from PyQt5.QtWidgets import QWidget
 
 from CodeEditor.CodeEditorGlobalDefines import CodeEditorGlobalDefines as CEGD
-from CodeEditor.ToolClass.EditorSettings import EditorSettings
 
 
 
 class LineNumberWidget(QWidget):
     
     def setVisibleLineYOffInfoArray(self,visibleLineYOffInfoArray):
-        if self.visibleLineYOffInfoArray != visibleLineYOffInfoArray:
-            self.visibleLineYOffInfoArray = visibleLineYOffInfoArray
+        if self.__visibleLineYOffInfoArray != visibleLineYOffInfoArray:
+            self.__visibleLineYOffInfoArray = visibleLineYOffInfoArray
             self.update()
     
     
     def __init__(self,editorSettingObj,parent):
         QWidget.__init__(self,parent)
-        self.getSettings = lambda : editorSettingObj
+        self.settings = lambda : editorSettingObj
         self.__initData()
                 
-        self.visibleLineYOffInfoArray = None
+        self.__visibleLineYOffInfoArray = None
         
     def __initData(self):
-        for funcName in EditorSettings.getFuncNames:
-            setattr(self, funcName, getattr(self.getSettings(), funcName) )
-            
-        self.getSettings().lineTextLeftXOffChangedSignal.connect( self.__onLeftXOffChanged )
-        self.getSettings().lineNumberRightXOffChangedSignal.connect(lambda v: self.update())
-        self.getSettings().fontChangedSignal.connect(lambda v: self.update())
-        self.getSettings().startDisLineNumberChangedSignal.connect(lambda v: self.update())
+        self.__forceUpdate = lambda *arg1,**arg2:self.update()
+        self.settings().lineTextLeftXOffChangedSignal.connect( self.__onLeftXOffChanged )
+        self.settings().lineNumberRightXOffChangedSignal.connect( self.__forceUpdate )
+        self.settings().fontChangedSignal.connect( self.__forceUpdate )
+        self.settings().startDisLineNumberChangedSignal.connect( self.__forceUpdate )
         
     def __onLeftXOffChanged(self,newLeftXOff):
         self.resize( newLeftXOff,self.height() )
@@ -49,7 +46,7 @@ class LineNumberWidget(QWidget):
         
     def paintEvent(self, event):
         painter = QtGui.QPainter(self)
-        painter.setFont(self.getFont())
+        painter.setFont(self.settings().getFont())
         painter.setPen(QtCore.Qt.NoPen)
         painter.setBrush(CEGD.WhiteOpaqueBrush)
         #painter.drawRect(0,0,self.width(),self.height())
@@ -60,15 +57,15 @@ class LineNumberWidget(QWidget):
 
     # 绘制行号
     def __drawLineNumber(self,painter):
-        if self.visibleLineYOffInfoArray == None:
+        if self.__visibleLineYOffInfoArray == None:
             return
         
         painter.setPen(CEGD.LineNumberPen)   
-        for item in self.visibleLineYOffInfoArray:
+        for item in self.__visibleLineYOffInfoArray:
             curY = item['lineYOff']
             index = item['lineIndex']
             lineNumberRect = painter.boundingRect( 0,curY,0,0,0,str(index+1) )
-            lineNumberRect.moveRight( self.getLineNumberRightXOff() - lineNumberRect.x() )
+            lineNumberRect.moveRight( self.settings().getLineNumberRightXOff() - lineNumberRect.x() )
             # painter.drawText( lineNumberRect,0,str(index+1) )
             painter.drawText( lineNumberRect,0,str(index+1) )
             
