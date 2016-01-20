@@ -1,7 +1,7 @@
 
 from PyQt5 import QtCore
 
-from CodeEditor.FrequentlyUsedFunc import FrequentlyUsedFunc as FUF
+from CodeEditor.MainClass.FrequentlyUsedFunc import FrequentlyUsedFunc as FUF
 
 
 class SelectedTextManager(QtCore.QObject):

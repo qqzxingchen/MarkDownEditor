@@ -3,9 +3,10 @@ import keyword,re,copy
 
 from PyQt5 import QtGui
 
-from CodeEditor.TextDocument import TextDocument
-from CodeEditor.CodeEditorGlobalDefines import CodeEditorGlobalDefines as CEGD
-from CodeEditor.FrequentlyUsedFunc import FrequentlyUsedFunc as FUF
+from CodeEditor.MainClass.TextDocument import TextDocument
+from CodeEditor.MainClass.CodeEditorGlobalDefines import CodeEditorGlobalDefines as CEGD
+from CodeEditor.MainClass.FrequentlyUsedFunc import FrequentlyUsedFunc as FUF
+
 from CodeEditor.ToolClass.RetuInfo import RetuInfo
 
 

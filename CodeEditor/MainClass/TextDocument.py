@@ -1,8 +1,9 @@
 
 import re
 from PyQt5 import QtCore,QtGui
-from CodeEditor.CodeEditorGlobalDefines import CodeEditorGlobalDefines as CEGD
-from CodeEditor.FrequentlyUsedFunc import FrequentlyUsedFunc as FUF
+from CodeEditor.MainClass.CodeEditorGlobalDefines import CodeEditorGlobalDefines as CEGD
+from CodeEditor.MainClass.FrequentlyUsedFunc import FrequentlyUsedFunc as FUF
+
 from CodeEditor.ToolClass.OperateCache import OperateCache, OperateRecord
 from CodeEditor.ToolClass.RetuInfo import RetuInfo
 

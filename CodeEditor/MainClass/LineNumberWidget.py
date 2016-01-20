@@ -3,7 +3,7 @@
 from PyQt5 import QtGui,QtCore
 from PyQt5.QtWidgets import QWidget
 
-from CodeEditor.CodeEditorGlobalDefines import CodeEditorGlobalDefines as CEGD
+from CodeEditor.MainClass.CodeEditorGlobalDefines import CodeEditorGlobalDefines as CEGD
 
 
 
@@ -14,30 +14,21 @@ class LineNumberWidget(QWidget):
             self.__visibleLineYOffInfoArray = visibleLineYOffInfoArray
             self.update()
     
-    
+    # 行号的文本将会右对齐于该函数的返回值
+    def getLineNumberRightXOff(self):
+        return self.width()-8
+
     def __init__(self,editorSettingObj,parent):
         QWidget.__init__(self,parent)
+        self.setMinimumWidth(24)
+        self.setMaximumWidth(64)
         self.settings = lambda : editorSettingObj
-        self.__initData()
-                
-        self.__visibleLineYOffInfoArray = None
         
-    def __initData(self):
         self.__forceUpdate = lambda *arg1,**arg2:self.update()
-        self.settings().lineTextLeftXOffChangedSignal.connect( self.__onLeftXOffChanged )
-        self.settings().lineNumberRightXOffChangedSignal.connect( self.__forceUpdate )
         self.settings().fontChangedSignal.connect( self.__forceUpdate )
         self.settings().startDisLineNumberChangedSignal.connect( self.__forceUpdate )
-        
-    def __onLeftXOffChanged(self,newLeftXOff):
-        self.resize( newLeftXOff,self.height() )
-        
-        
-        
-        
-        
-        
-        
+                
+        self.__visibleLineYOffInfoArray = None
         
         
     def mouseDoubleClickEvent(self, event):
@@ -65,8 +56,7 @@ class LineNumberWidget(QWidget):
             curY = item['lineYOff']
             index = item['lineIndex']
             lineNumberRect = painter.boundingRect( 0,curY,0,0,0,str(index+1) )
-            lineNumberRect.moveRight( self.settings().getLineNumberRightXOff() - lineNumberRect.x() )
-            # painter.drawText( lineNumberRect,0,str(index+1) )
+            lineNumberRect.moveRight( self.getLineNumberRightXOff() - lineNumberRect.x() )
             painter.drawText( lineNumberRect,0,str(index+1) )
             
             
