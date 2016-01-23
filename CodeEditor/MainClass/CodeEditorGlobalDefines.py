@@ -45,8 +45,8 @@ class CodeEditorGlobalDefines:
     LineSelectedBKBrush = QtGui.QBrush( QtGui.QColor( 64,144,240,32 ),QtCore.Qt.SolidPattern )      # 绘制输入焦点所在行的行背景画刷
     LineUnSelectedBKBrush = QtGui.QBrush( QtGui.QColor( 0,0,0,100 ),QtCore.Qt.NoBrush )
     
-    TextSelectedBKBrush = QtGui.QBrush( QtGui.QColor( 200,100,0,100 ),QtCore.Qt.SolidPattern )      # 选中文本高亮时用的背景画刷
-
+    TextSelectedBKBrush = QtGui.QBrush( QtGui.QColor( 200,100,0,64 ),QtCore.Qt.SolidPattern )      # 选中文本高亮时用的背景画刷
+    TextAutoSelectedBKBrush = QtGui.QBrush( QtGui.QColor( 255,255,150,160 ),QtCore.Qt.SolidPattern )  # 与选中单词相同的单词高亮时用的背景画刷
     
 
     

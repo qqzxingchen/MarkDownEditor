@@ -1,4 +1,4 @@
-import time,uuid
+import time,re
 from PyQt5 import QtCore
 from CodeEditor.ToolClass.RetuInfo import RetuInfo
 
@@ -30,7 +30,6 @@ class FrequentlyUsedFunc:
     onlyShiftModifier   = lambda modifiers:int(modifiers) == int(QtCore.Qt.ShiftModifier)
     onlyCtrlModifier    = lambda modifiers:int(modifiers) == int(QtCore.Qt.ControlModifier)
     onlyAltModifier     = lambda modifiers:int(modifiers) == int(QtCore.Qt.AltModifier)
-
 
     isChineseChar = lambda c : (ord(c) >= 0x4e00) and (ord(c) <= 0x9fa5)
     
@@ -83,9 +82,34 @@ class FrequentlyUsedFunc:
         else:
             return value
         
+        
+    WordChecker = re.compile('^[a-zA-Z0-9_]{1,}$')
     @staticmethod
-    def genUUID():
-        return uuid.uuid1()
+    def isTextIsAWord(text):
+        return FrequentlyUsedFunc.WordChecker.search( text ) != None
+
+    @staticmethod
+    def isTextIsAFullWord(lineText,textIndexPos):
+        start,end = textIndexPos
+
+        if FrequentlyUsedFunc.isTextIsAWord(lineText[start:end]) == False:
+            return False
+
+        if start <= 0:  
+            leftSignal = True
+        else:           
+            leftSignal = (FrequentlyUsedFunc.isTextIsAWord( lineText[start-1] ) != True)
+        
+        if end >= len(lineText):    
+            rightSignal = True
+        else:                       
+            rightSignal = (FrequentlyUsedFunc.isTextIsAWord( lineText[end] ) != True)
+        
+        return ( leftSignal == True and rightSignal == True )
+
+    @staticmethod
+    def generateFullWordSearcher(word):
+        return re.compile(r'\b%s\b' % word)
 
 
     # 打印函数执行的时间

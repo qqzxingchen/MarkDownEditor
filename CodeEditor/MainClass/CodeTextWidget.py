@@ -20,7 +20,6 @@ class CodeTextWidget(BaseTextWidget):
     onQuickAltKeySignal = QtCore.pyqtSignal( QtCore.Qt.Key )
 
 
-
         
     def deleteSelectText(self,update = True):
         selectedTextIndexPosRange = self.selectedTextManager().getSelectedTextIndexPosSorted()
@@ -28,12 +27,54 @@ class CodeTextWidget(BaseTextWidget):
             start,end = selectedTextIndexPosRange
             self.cursor().setGlobalCursorPos( start )
             self.document().deleteText(start,self.document().calcIndexPosDistance(start,end) )
-            self.selectedTextManager().clearSelectedText(update)
+            self.selectedTextManager().clearSelectedText()
             
     def __init__(self,textDocumentObj = None,settingsObj = None,parent=None):
         BaseTextWidget.__init__(self,textDocumentObj,settingsObj,parent)        
         self.onQuickCtrlKeySignal.connect(self.onQuickCtrlKey)
         
+
+
+    # 当光标的位置改变时，需要刷新原来的行以及新行
+    def onCursorPosChanged(self):
+        self.update()
+        curCursorPos = self.cursor().getCursorIndexPos()
+        
+        curXPixel = self.transGloPixelPosToCurPixelPos( self.transGloIndexPosToGloPixelPos( curCursorPos ) )[0]
+        if curXPixel < 0:
+            moveDistance = 0 - curXPixel
+            moveDistance = (int(moveDistance / 100) + 1) * 100
+            self.showLeftXOffAsLeft(self.settings().getStartDisLetterXOff()-moveDistance)
+        elif curXPixel+CEGD.CursorWidth > self.width():
+            moveDistance = curXPixel-self.width()
+            moveDistance = (int(moveDistance / 100) + 1) * 100
+            self.showLeftXOffAsLeft(self.settings().getStartDisLetterXOff()+moveDistance)
+        
+        curYIndex = curCursorPos[1]
+        if ( curYIndex < self.settings().getStartDisLineNumber() ):
+            self.showLineNumberAsTop(curYIndex)
+        elif ( curYIndex >= self.settings().getStartDisLineNumber() + self.calcDisLineNumber() ):
+            self.showLineNumberAsTop(curYIndex - (self.calcDisLineNumber()-1))
+        else:
+            self.updateLineIndexRect( self.cursor().getCursorIndexPos(False)[1],self.settings().getFontMetrics().lineSpacing() )
+            self.updateLineIndexRect( curYIndex,self.settings().getFontMetrics().lineSpacing() )
+
+    def onSelectedTextChanged(self):
+        selectedTextSearcher = None
+        selectedTextIndexPosRangeTuple = self.selectedTextManager().getSelectedTextIndexPosSorted()
+        if selectedTextIndexPosRangeTuple != None:
+            startIndexPos,endIndexPos = selectedTextIndexPosRangeTuple
+            if startIndexPos[1] == endIndexPos[1]:
+                lineText = self.document().getLineText(startIndexPos[1])
+                if FUF.isTextIsAFullWord(lineText, (startIndexPos[0],endIndexPos[0]) ):
+                    word = lineText[ startIndexPos[0]:endIndexPos[0] ]
+                    selectedTextSearcher = FUF.generateFullWordSearcher(word)
+
+        self.settings().setUserDataByKey('selectedTextSearcher',selectedTextSearcher)
+        self.update()
+
+
+
 
 
         
@@ -51,7 +92,7 @@ class CodeTextWidget(BaseTextWidget):
         cursorIndexPos = self.cursor().getCursorIndexPos()
         if self.document().isIndexPosValid(cursorIndexPos) == False:
             self.cursor().setGlobalCursorPos( self.document().formatIndexPos(cursorIndexPos) )
-        self.selectedTextManager().clearSelectedText(False)
+        self.selectedTextManager().clearSelectedText()
         self.update()
         
     def CTRL_V(self):
@@ -66,7 +107,7 @@ class CodeTextWidget(BaseTextWidget):
     
     def CTRL_A(self):
         l = self.document().getLineCount()-1
-        self.selectedTextManager().setSelectTextIndexPos( (0,0) , (len(self.document().getLineText(l)),l) , True)
+        self.selectedTextManager().setSelectTextIndexPos( (0,0) , (len(self.document().getLineText(l)),l) )
     
     def CTRL_C(self):
         selectedIndexPoss = self.selectedTextManager().getSelectedTextIndexPosSorted()
@@ -85,7 +126,17 @@ class CodeTextWidget(BaseTextWidget):
     
     
         
-    
+    def insertStr(self,text):
+        if len(text) == 0:
+            return
+        
+        self.document().operateCache().startRecord()
+        self.deleteSelectText(False)
+        indexPos = self.document().insertText(self.cursor().getCursorIndexPos(),text)  
+        self.document().operateCache().endRecord()
+
+        self.cursor().setGlobalCursorPos(indexPos)
+        self.update()
     
 
     
@@ -108,7 +159,7 @@ class CodeTextWidget(BaseTextWidget):
         prevClickedPixelPos = self.settings().getUserDataByKey('leftMouseDoubleClickedPos')
         if prevClickedPixelPos == clickedPixelPos:
             self.settings().setUserDataByKey('leftMouseDoubleClickedPos',None)
-            self.selectedTextManager().setSelectTextIndexPos( (0,yPos),(len(lineText),yPos),False )
+            self.selectedTextManager().setSelectTextIndexPos( (0,yPos),(len(lineText),yPos) )
             self.cursor().setGlobalCursorPos( (len(lineText),yPos) )
         else:
             self.settings().setUserDataByKey('leftMouseDoubleClickedPos',clickedPixelPos)
@@ -129,7 +180,7 @@ class CodeTextWidget(BaseTextWidget):
                     else:
                         length = toLeftRetuDict['offset']
                         xPos -= length
-            self.selectedTextManager().setSelectTextIndexPos( (xPos,yPos),(xPos+length,yPos),False )
+            self.selectedTextManager().setSelectTextIndexPos( (xPos,yPos),(xPos+length,yPos) )
             self.cursor().setGlobalCursorPos( (xPos+length,yPos) )
         
     
@@ -281,7 +332,7 @@ class CodeTextWidget(BaseTextWidget):
             if affectedLineIndexList.count(curCursorPos[1]) != 0:
                 self.cursor().setGlobalCursorPos( (curCursorPos[0]+CEGD.spaceToInsertTOL,curCursorPos[1]) )            
             self.selectedTextManager().setSelectTextIndexPos( (curSelectedIndexPos[0][0]+CEGD.spaceToInsertTOL,curSelectedIndexPos[0][1]) ,\
-                                          (curSelectedIndexPos[1][0]+CEGD.spaceToInsertTOL,curSelectedIndexPos[1][1]) , False)
+                                          (curSelectedIndexPos[1][0]+CEGD.spaceToInsertTOL,curSelectedIndexPos[1][1]) )
             
         self.update()
     
@@ -374,34 +425,19 @@ class CodeTextWidget(BaseTextWidget):
 
 
 
-
-    
-    def insertStr(self,text):
-        if len(text) == 0:
-            return
-        
-        self.document().operateCache().startRecord()
-        self.deleteSelectText(False)
-        indexPos = self.document().insertText(self.cursor().getCursorIndexPos(),text)  
-        self.document().operateCache().endRecord()
-
-        self.cursor().setGlobalCursorPos(indexPos)
-        self.update()
-    
-        
-    def paintEvent(self, event):
-        BaseTextWidget.paintEvent(self, event)
-        painter = QtGui.QPainter(self)
-        painter.setFont(self.settings().getFont())
+    @FUF.funcExeTime
+    def beforePaint(self, painter):
+        BaseTextWidget.beforePaint(self, painter)
         self.__highlightSelectedText(painter)
+        self.__highlightAutoSelectedText(painter)
         
         
     def __highlightSelectedText(self,painter):
-        lineHeight = self.settings().getFontMetrics().lineSpacing()
         selectedTextIndexPosRangeTuple = self.selectedTextManager().getSelectedTextIndexPosSorted()
         if selectedTextIndexPosRangeTuple != None:
             startIndexPos,endIndexPos = selectedTextIndexPosRangeTuple
-
+            lineHeight = self.settings().getFontMetrics().lineSpacing()
+        
             startCurPixelPos = self.transGloPixelPosToCurPixelPos(self.transGloIndexPosToGloPixelPos(startIndexPos))
             endCurPixelPos = self.transGloPixelPosToCurPixelPos(self.transGloIndexPosToGloPixelPos(endIndexPos))
             
@@ -422,8 +458,37 @@ class CodeTextWidget(BaseTextWidget):
                 painter.fillRect( endCurPixelPos[0]-self.width(),endCurPixelPos[1], \
                                   self.width(),lineHeight ,\
                                   CEGD.TextSelectedBKBrush )                
+    
+    # @FUF.funcExeTime
+    def __highlightAutoSelectedText(self,painter):
+        selectedTextSearcher = self.settings().getUserDataByKey('selectedTextSearcher')
+        if selectedTextSearcher == None:
+            return 
+        
+        lineHeight = self.settings().getFontMetrics().lineSpacing()
+        
+        indexPoss = []
+        for item in self.calcAnyVisibleYOff():
+            text = self.document().getLineText(item['lineIndex'])
+            for metaObj in selectedTextSearcher.finditer( text ):
+                indexPoss.append( ( metaObj.span()[0],metaObj.span()[1],item['lineIndex'] )   )
+        
+        # 移除用户选中的文本的范围，使其不高亮（因为已经高亮过了）
+        selectedIndexPos = self.selectedTextManager().getSelectedTextIndexPosSorted()
+        selectedItem = ( selectedIndexPos[0][0],selectedIndexPos[1][0],selectedIndexPos[0][1] )
+        if indexPoss.count( selectedItem ) != 0:
+            indexPoss.remove( selectedItem )
+
+        for spanTuple in indexPoss:
+            start,end,lineIndex = spanTuple
+            startCurPixelPos = self.transGloPixelPosToCurPixelPos(self.transGloIndexPosToGloPixelPos( (start,lineIndex) ))
+            endCurPixelPos = self.transGloPixelPosToCurPixelPos(self.transGloIndexPosToGloPixelPos( (end,lineIndex) ))
+            painter.fillRect( startCurPixelPos[0], startCurPixelPos[1], \
+                              endCurPixelPos[0] - startCurPixelPos[0],lineHeight, \
+                              CEGD.TextAutoSelectedBKBrush )
         
         
+
         
         
         

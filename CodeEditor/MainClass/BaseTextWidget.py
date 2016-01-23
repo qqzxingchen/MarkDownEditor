@@ -36,6 +36,34 @@ class BaseTextWidget(QWidget):
         self.settings().setStartDisLetterXOff( 0 if xOff < 0 else xOff,update )
     
     
+    
+    
+    def onSelectedTextChanged(self):
+        self.update()
+    
+    def onFontChanged(self,newFontObj):
+        self.__textDocument.setFont(self.settings().getFont(), self.settings().getFontMetrics())
+        self.update()
+    
+    # 当光标的位置改变时，需要刷新原来的行以及新行
+    def onCursorPosChanged(self):
+        self.update()
+    
+    def onStartDisLineNumberChanged(self,curV):
+        self.update()
+
+    def onStartDisLetterXOffChanged(self,curV):
+        self.update()
+
+    def onLineTextMaxPixelChanged(self,curV):
+        self.update()
+
+    def onEditableChanged(self,curState):
+        self.update()
+    
+    
+    
+    
     def __init__(self,textDocumentObj = None,settingsObj = None,parent=None):
         QWidget.__init__(self,parent)
         self.setCursor( QtCore.Qt.IBeamCursor )
@@ -65,19 +93,16 @@ class BaseTextWidget(QWidget):
         self.__textDocument.setFont(self.settings().getFont(),self.settings().getFontMetrics())
 
         self.__textCursor = TextCursor(self)
-        self.__textCursor.cursorPosChangedSignal.connect(self.__onCursorPosChanged)
+        self.__textCursor.cursorPosChangedSignal.connect(self.onCursorPosChanged)
         self.__textCursor.initPos( (0,0) )
         
-        self.__forceUpdateFunc = lambda *arg1,**arg2 : self.update()
+        self.settings().fontChangedSignal.connect(self.onFontChanged)
+        self.settings().startDisLineNumberChangedSignal.connect( self.onStartDisLineNumberChanged )
+        self.settings().startDisLetterXOffChangedSignal.connect( self.onStartDisLetterXOffChanged )
+        self.settings().lineTextMaxPixelChangedSignal.connect( self.onLineTextMaxPixelChanged )
+        self.settings().editableChangedSignal.connect( self.onEditableChanged )
         
-        self.settings().fontChangedSignal.connect(self.__onFontChanged)
-        self.settings().startDisLineNumberChangedSignal.connect( self.__forceUpdateFunc )
-        self.settings().startDisLetterXOffChangedSignal.connect( self.__forceUpdateFunc )
-        self.settings().lineTextMaxPixelChangedSignal.connect( self.__forceUpdateFunc )
-        self.settings().editableChangedSignal.connect( self.__forceUpdateFunc )
-        
-        self.selectedTextManager().updateSignal.connect( self.__forceUpdateFunc )
-    
+        self.selectedTextManager().selectedTextChangedSignal.connect( self.onSelectedTextChanged )
     
     def __onGlobalEvents(self,obj,event):
         if event.type() == QtCore.QEvent.FocusIn:
@@ -89,45 +114,17 @@ class BaseTextWidget(QWidget):
                 return True
     
     
-    def __onFontChanged(self,newFontObj):
-        self.__textDocument.setFont(self.settings().getFont(), self.settings().getFontMetrics())
-        self.update()
 
-    # 当光标的位置改变时，需要刷新原来的行以及新行
-    def __onCursorPosChanged(self):
-        curCursorPos = self.__textCursor.getCursorIndexPos()
-        
-        curXPixel = self.transGloPixelPosToCurPixelPos( self.transGloIndexPosToGloPixelPos( curCursorPos ) )[0]
-        if curXPixel < 0:
-            moveDistance = 0 - curXPixel
-            moveDistance = (int(moveDistance / 100) + 1) * 100
-            self.showLeftXOffAsLeft(self.settings().getStartDisLetterXOff()-moveDistance)
-        elif curXPixel+CEGD.CursorWidth > self.width():
-            moveDistance = curXPixel-self.width()
-            moveDistance = (int(moveDistance / 100) + 1) * 100
-            self.showLeftXOffAsLeft(self.settings().getStartDisLetterXOff()+moveDistance)
-        
-        curYIndex = curCursorPos[1]
-        if ( curYIndex < self.settings().getStartDisLineNumber() ):
-            self.showLineNumberAsTop(curYIndex)
-        elif ( curYIndex >= self.settings().getStartDisLineNumber() + self.calcDisLineNumber() ):
-            self.showLineNumberAsTop(curYIndex - (self.calcDisLineNumber()-1))
-        else:
-            self.__updateLineIndexRect( self.__textCursor.getCursorIndexPos(False)[1],self.settings().getFontMetrics().lineSpacing() )
-            self.__updateLineIndexRect( curYIndex,self.settings().getFontMetrics().lineSpacing() )
+
+
                     
 
     # 以当前的设置为准，更新第lineIndex对应的矩形区域
-    def __updateLineIndexRect(self,lineIndex,height):
+    def updateLineIndexRect(self,lineIndex,height):
         for item in self.calcAnyVisibleYOff():
             if item['lineIndex'] == lineIndex:
                 self.update( 0, item['lineYOff'],self.width(),height )
                 break
-
-
-
-
-
 
     # 根据光标的全局位置，计算出当前视口下光标的实际位置，返回tuple
     def transGloPixelPosToCurPixelPos(self,xyGloPixelPosTuple):
@@ -194,8 +191,17 @@ class BaseTextWidget(QWidget):
         return yOffArray
     
     
+    # 子类通过重写beforeDraw、afterDraw来实现对界面的修改，而不要直接重写paintEvent
+    # 之所以子类尽量不要重写paintEvent，是因为子类中大部分情况是为了高亮某段文本
+    #     如果先绘制文本，再用半透明的高亮画刷绘制高亮区域，会导致之前绘制的文本的颜色大幅度变浅，影响用户查看
+    #     而如果先用高亮画刷绘制高亮区域，再绘制文本即可解决上述问题
+    # 如果子类的绘制可以晚于文本的绘制，并不会造成不利影响，那么子类重写paintEvent也是可以的
+    def beforePaint(self,painter):
+        pass
+    
+    def afterPaint(self,painter):
+        pass
 
-      
     def paintEvent(self,event):
         visibleLineYOffInfoArray = self.calcAnyVisibleYOff()
         self.visibleLineYOffInfoChangedSignal.emit( visibleLineYOffInfoArray )
@@ -205,7 +211,11 @@ class BaseTextWidget(QWidget):
         painter.setPen(QtCore.Qt.NoPen)
         painter.setBrush(CEGD.WhiteOpaqueBrush)
         painter.drawRect(0,0,self.width(),self.height())
-
+        
+        painter.save()
+        self.beforePaint(painter)
+        painter.restore()
+        
         painter.save()
         self.__drawLineText(painter,visibleLineYOffInfoArray,event.rect())
         painter.restore()
@@ -213,6 +223,11 @@ class BaseTextWidget(QWidget):
         painter.save()
         self.__refreshCursor(painter,visibleLineYOffInfoArray)
         painter.restore()
+
+        painter.save()
+        self.afterPaint(painter)
+        painter.restore()
+
                 
         
     # 绘制每行文本
