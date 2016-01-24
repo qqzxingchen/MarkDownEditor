@@ -1,5 +1,5 @@
 
-from CodeEditor.ToolClass.RetuInfo import RetuInfo
+from CodeEditor.DataClass.RetuInfo import RetuInfo
 
 # 该类是为了记录用户进行的操作， 并用于回滚操作（Ctrl+Z）
 # 其分为两个阶段：记录阶段 和 回滚阶段

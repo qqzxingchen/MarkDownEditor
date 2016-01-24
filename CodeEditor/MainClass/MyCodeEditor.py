@@ -9,7 +9,7 @@ from CodeEditor.MainClass.LineNumberWidget import LineNumberWidget
 
 from CodeEditor.CustomVersion.Python3Version.PythonTextDocument import PythonTextDocument
 
-from CodeEditor.ToolClass.EditorSettings import EditorSettings
+from CodeEditor.DataClass.EditorSettings import EditorSettings
 
 
 
@@ -112,12 +112,16 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     
     mce = MyCodeEditor()
-    #with codecs.open( '../tmp/temp3.txt','r','utf-8' ) as templateFileObj:
     with codecs.open( 'CodeTextWidget.py','r','utf-8' ) as templateFileObj:
         fileStr = templateFileObj.read()
-        mce.setText(fileStr*25)
+        mce.setText(fileStr*24)
     mce.show()
-    mce.resize(600,400)
+    mce.resize(1400,800)
+    
+    screenWidth = QApplication.desktop().width()
+    screenHeight = QApplication.desktop().height()
+    mce.setGeometry( (screenWidth-1200)/2 , (screenHeight-700)/2 , 1200,700 )
+    
     
     sys.exit( app.exec_() )
 

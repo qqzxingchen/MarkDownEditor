@@ -1,6 +1,6 @@
 import time,re
 from PyQt5 import QtCore
-from CodeEditor.ToolClass.RetuInfo import RetuInfo
+from CodeEditor.DataClass.RetuInfo import RetuInfo
 
 
 

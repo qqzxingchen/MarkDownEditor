@@ -8,9 +8,9 @@ from CodeEditor.MainClass.TextCursor import TextCursor
 from CodeEditor.MainClass.CodeEditorGlobalDefines import CodeEditorGlobalDefines as CEGD
 from CodeEditor.MainClass.FrequentlyUsedFunc import FrequentlyUsedFunc as FUF
 
-from CodeEditor.ToolClass.EditorSettings import EditorSettings
-from CodeEditor.ToolClass.RetuInfo import RetuInfo
-from CodeEditor.ToolClass.SelectedTextManager import SelectedTextManager
+from CodeEditor.DataClass.EditorSettings import EditorSettings
+from CodeEditor.DataClass.RetuInfo import RetuInfo
+from CodeEditor.DataClass.SelectedTextManager import SelectedTextManager
 
 
 class __EventFilter__(QtCore.QObject):

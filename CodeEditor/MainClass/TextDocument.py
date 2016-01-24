@@ -1,8 +1,8 @@
 
 from PyQt5 import QtCore,QtGui
 
-from CodeEditor.ToolClass.OperateCache import OperateCache, OperateRecord
-from CodeEditor.ToolClass.RetuInfo import RetuInfo
+from CodeEditor.DataClass.OperateCache import OperateCache, OperateRecord
+from CodeEditor.DataClass.RetuInfo import RetuInfo
 
 from CodeEditor.MainClass.FrequentlyUsedFunc import FrequentlyUsedFunc as FUF
 from CodeEditor.MainClass.BaseDocument import BaseDocument
