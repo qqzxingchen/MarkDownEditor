@@ -6,10 +6,9 @@ from PyQt5 import QtGui,QtCore
 from CodeEditor.MainClass.TextDocument import TextDocument
 from CodeEditor.MainClass.CodeEditorGlobalDefines import CodeEditorGlobalDefines as CEGD,GlobalClipBorard
 from CodeEditor.MainClass.FrequentlyUsedFunc import FrequentlyUsedFunc as FUF
-
-
 from CodeEditor.MainClass.BaseTextWidget import BaseTextWidget
 
+from CodeEditor.ToolClass.SearchDialog import SearchDialog
 
 
 class CodeTextWidget(BaseTextWidget):
@@ -32,7 +31,9 @@ class CodeTextWidget(BaseTextWidget):
     def __init__(self,textDocumentObj = None,settingsObj = None,parent=None):
         BaseTextWidget.__init__(self,textDocumentObj,settingsObj,parent)        
         self.onQuickCtrlKeySignal.connect(self.onQuickCtrlKey)
-        
+
+        self.__searchDialog = SearchDialog(self)
+        self.searchDialog = lambda : self.__searchDialog
 
 
     # 当光标的位置改变时，需要刷新原来的行以及新行
@@ -72,10 +73,6 @@ class CodeTextWidget(BaseTextWidget):
 
         self.settings().setUserDataByKey('selectedTextSearcher',selectedTextSearcher)
         self.update()
-
-
-
-
 
         
         
@@ -122,7 +119,19 @@ class CodeTextWidget(BaseTextWidget):
                 textData += self.document().getSplitedChar() + self.document().getLineText(index)
             textData += self.document().getSplitedChar() + self.document().getLineText(end[1])[0:end[0]]
         GlobalClipBorard().setData( textData )
-        
+    
+    def CTRL_F(self):
+        self.searchDialog().show()
+    
+    
+    '''  
+    def CTRL_S(self):
+        import codecs
+        with codecs.open( 'temp.py','w','gb2312' ) as f:
+            f.write(self.document().getText())
+    '''
+    
+    
     
     
         
@@ -425,7 +434,7 @@ class CodeTextWidget(BaseTextWidget):
 
 
 
-    @FUF.funcExeTime
+    # @FUF.funcExeTime
     def beforePaint(self, painter):
         BaseTextWidget.beforePaint(self, painter)
         self.__highlightSelectedText(painter)

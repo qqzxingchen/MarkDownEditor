@@ -24,6 +24,10 @@ class __EventFilter__(QtCore.QObject):
 
 
 class BaseTextWidget(QWidget):
+    @staticmethod
+    def generateIDStrByObjAndEvent(obj,eventType):
+        return '%s__%s'%( str(id(obj)),str(eventType) )
+    
     
     # 在每次重绘的时候，该函数都将被调用，以此通知显示行号的模块(LineNumberWidget)应该显示哪些行号，显示的位置如何
     visibleLineYOffInfoChangedSignal = QtCore.pyqtSignal( list )
@@ -61,8 +65,32 @@ class BaseTextWidget(QWidget):
     def onEditableChanged(self,curState):
         self.update()
     
+    def onGlobalEvents(self,obj,event):
+        dispacherInfo = self.settings().getUserDataByKey('eventDispacherInfo',{})
+        func = dispacherInfo.get( BaseTextWidget.generateIDStrByObjAndEvent(obj, event.type()) )        
+        if func != None:
+            return func(obj,event)
     
+    # 注册事件转换器，将obj上发生的eventType类型交给func处理
+    # 信息存储时的数据结构：所有信息存储在一个dict中
+    #     key：BaseTextWidget.generateIDStrByObjAndEvent计算得到
+    #     value：func
+    def regEventDispacher(self,obj,eventType,func):
+        dispacherInfo = self.settings().getUserDataByKey('eventDispacherInfo',{})
+        key = BaseTextWidget.generateIDStrByObjAndEvent(obj, eventType)
+        if dispacherInfo.get(key) == None:
+            dispacherInfo[key] = func
+        self.settings().setUserDataByKey( 'eventDispacherInfo',dispacherInfo )
+
+    def dispacherOnInputMethod(self,obj,event):
+        self.insertStr(event.commitString())
+        return True
     
+    def __installEventDispacher(self):
+        self.regEventDispacher(self, QtCore.QEvent.InputMethod, self.dispacherOnInputMethod)
+        self.regEventDispacher(self.__textCursor, QtCore.QEvent.InputMethod, self.dispacherOnInputMethod)
+        
+
     
     def __init__(self,textDocumentObj = None,settingsObj = None,parent=None):
         QWidget.__init__(self,parent)
@@ -72,8 +100,10 @@ class BaseTextWidget(QWidget):
         settingsObj = EditorSettings() if settingsObj == None else settingsObj
         self.__initData( textDocumentObj,settingsObj )
         
-        self.__globalEventFilter = __EventFilter__( self.__onGlobalEvents )
+        self.__globalEventFilter = __EventFilter__( self.onGlobalEvents )
+        self.__installEventDispacher()
         QtWidgets.qApp.installEventFilter( self.__globalEventFilter )
+        
         
         self.setText = self.__textDocument.setText
         self.getText = self.__textDocument.getText
@@ -95,6 +125,7 @@ class BaseTextWidget(QWidget):
         self.__textCursor = TextCursor(self)
         self.__textCursor.cursorPosChangedSignal.connect(self.onCursorPosChanged)
         self.__textCursor.initPos( (0,0) )
+        self.__textCursor.setFocus(QtCore.Qt.MouseFocusReason)
         
         self.settings().fontChangedSignal.connect(self.onFontChanged)
         self.settings().startDisLineNumberChangedSignal.connect( self.onStartDisLineNumberChanged )
@@ -104,15 +135,7 @@ class BaseTextWidget(QWidget):
         
         self.selectedTextManager().selectedTextChangedSignal.connect( self.onSelectedTextChanged )
     
-    def __onGlobalEvents(self,obj,event):
-        if event.type() == QtCore.QEvent.FocusIn:
-            self.__textCursor.setFocus(QtCore.Qt.MouseFocusReason)
-            return True
-        if event.type() == QtCore.QEvent.InputMethod:
-            if obj == self.__textCursor or obj == self:
-                self.insertStr(event.commitString())
-                return True
-    
+
     
 
 

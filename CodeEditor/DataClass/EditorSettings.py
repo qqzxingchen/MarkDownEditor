@@ -72,11 +72,11 @@ class EditorSettings(QtCore.QObject):
         return self.__fontMetrics
     def isEditable(self):
         return self.__editAble
-    def getUserDataByKey(self,key):
-        return self.__userData.get(key)
-    
+    def getUserDataByKey(self,key,defaultValue = None):
+        return self.__userData.get(key,defaultValue)
 
-            
+
+
 
         
     def setStartDisLineNumber(self,newStartDisLineNumber,emitSignal = True):

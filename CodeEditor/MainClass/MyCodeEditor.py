@@ -15,7 +15,6 @@ from CodeEditor.DataClass.EditorSettings import EditorSettings
 
 
 
-
 class MyCodeEditor(QWidget):
 
     def __init__(self,parent=None):
@@ -23,6 +22,9 @@ class MyCodeEditor(QWidget):
 
         self.__editorSettings = EditorSettings()
         self.__textDocument = PythonTextDocument()
+        
+        self.__splitter = QSplitter(self)
+
 
         # 横纵滚动条
         self.__verticalScrollBar = QScrollBar(self)
@@ -39,17 +41,15 @@ class MyCodeEditor(QWidget):
         self.__horizontalScrollBar.valueChanged.connect(self.__onHScrollValueChanged)
         self.__editorSettings.startDisLetterXOffChangedSignal.connect(self.__horizontalScrollBar.setValue)
         
-
-        self.__lineNumberWidget = LineNumberWidget(self.__editorSettings,self)
+        self.__lineNumberWidget = LineNumberWidget(self.__editorSettings,self.__splitter)
         setattr(self.__lineNumberWidget,'resizeEvent',self.__onLineNumberWidgetSizeChanged)
-                
-        self.__codeTextWidget = CodeTextWidget(self.__textDocument,self.__editorSettings,self)
+        
+        self.__codeTextWidget = CodeTextWidget(self.__textDocument,self.__editorSettings,self.__splitter)
         self.__codeTextWidget.document().totalLevelTextChangedSignal.connect(self.__onCodeTextChanged)
         self.__codeTextWidget.settings().lineTextMaxPixelChangedSignal.connect(self.__onLineStrLengthChanged)
         self.__codeTextWidget.visibleLineYOffInfoChangedSignal.connect( self.__lineNumberWidget.setVisibleLineYOffInfoArray )
         
         
-        self.__splitter = QSplitter(self)
         self.__splitter.addWidget( self.__lineNumberWidget )
         self.__splitter.addWidget( self.__codeTextWidget )
         self.__splitter.setCollapsible( 0,False )
